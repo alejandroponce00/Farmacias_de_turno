@@ -4,11 +4,15 @@
  * ============================================================================
  * Responsabilidad:
  * - Orquestación de la interfaz de usuario, eventos del DOM, llamadas a la API y sincronización del mapa.
- * - Cobertura completa: Ciudad Autónoma de Buenos Aires (CABA) y Provincia de Buenos Aires (PBA).
- * - Filtros jerárquicos y combinados: Jurisdicción -> Partido / Comuna -> Localidad / Barrio.
+ * - Cobertura completa: CABA y municipios de la Provincia de Buenos Aires,
+ *   incorporando las 25 localidades de FarMap (corredores Oeste, Interior Ruta 5 y Costa Atlántica).
+ * - Filtros rápidos inspirados en FarMap:
+ *   * Acceso inmediato por región / corredor geográfico (chips superiores).
+ *   * Filtrado directo por estado de guardia: "Solo de turno", "Abiertas ahora", "24 Horas".
+ *   * Barra de vigencia horaria de guardia (08:30 a 08:30 hs según Ley 10.606).
+ * - Filtros jerárquicos combinados: Jurisdicción -> Partido / Comuna -> Localidad / Barrio.
  * - Sincronización en tiempo real con fecha oficial de Argentina (America/Argentina/Buenos_Aires).
- * - Distinción rigurosa entre error de conexión y ausencia de resultados para los filtros aplicados.
- * - Geolocalización y ordenamiento por cercanía para cualquier punto de la provincia o CABA.
+ * - Geolocalización y ordenamiento por cercanía con Leaflet.js y Google Maps.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -18,21 +22,25 @@ document.addEventListener('DOMContentLoaded', () => {
   // 1. REFERENCIAS A ELEMENTOS DEL DOM
   // --------------------------------------------------------------------------
   const elementos = {
-    // Encabezado y fecha
+    // Encabezado y vigencia de guardia
     fechaActual: document.getElementById('fecha-actual'),
     horaActual: document.getElementById('hora-actual'),
-    badgeModoActivo: document.getElementById('badge-modo-activo'),
-    textoExplicativoModo: document.getElementById('texto-explicativo-modo'),
+    badgeVigenciaTurno: document.getElementById('badge-vigencia-turno'),
+    textoVigenciaDetalle: document.getElementById('texto-vigencia-detalle'),
+    textoActualizadoTimestamp: document.getElementById('texto-actualizado-timestamp'),
     switchFuenteOficial: document.getElementById('switch-fuente-oficial'),
 
-    // Filtros
+    // Chips de acceso rápido por región y estado (FarMap)
+    contenedorChipsRegion: document.getElementById('contenedor-chips-region'),
+    contenedorChipsEstado: document.getElementById('contenedor-chips-estado'),
+
+    // Filtros de formulario
     formFiltros: document.getElementById('form-filtros'),
     inputBusqueda: document.getElementById('input-busqueda'),
     btnLimpiarBusqueda: document.getElementById('btn-limpiar-busqueda'),
     selectJurisdiccion: document.getElementById('select-jurisdiccion'),
     selectPartido: document.getElementById('select-partido'),
     selectLocalidad: document.getElementById('select-localidad'),
-    checkSoloAbiertas: document.getElementById('check-solo-abiertas'),
     btnLimpiarFiltros: document.getElementById('btn-limpiar-filtros'),
     btnActualizar: document.getElementById('btn-actualizar'),
     btnMiUbicacion: document.getElementById('btn-mi-ubicacion'),
@@ -40,6 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Estados y contenedores
     resumenResultados: document.getElementById('resumen-resultados'),
     badgeJurisdiccionActiva: document.getElementById('badge-jurisdiccion-activa'),
+    badgeTurnoResumen: document.getElementById('badge-turno-resumen'),
     estadoCargando: document.getElementById('estado-cargando'),
     estadoError: document.getElementById('estado-error'),
     mensajeErrorDetalle: document.getElementById('mensaje-error-detalle'),
@@ -52,7 +61,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // Mapa
     btnMapaRestablecer: document.getElementById('btn-mapa-restablecer'),
 
-    // Vista en móviles
+    // Vista en dispositivos móviles
     columnaLista: document.getElementById('columna-lista'),
     columnaMapa: document.getElementById('columna-mapa'),
     tabBtnLista: document.getElementById('tab-btn-lista'),
@@ -65,6 +74,8 @@ document.addEventListener('DOMContentLoaded', () => {
   // --------------------------------------------------------------------------
   const estadoApp = {
     modoFuente: 'turnos_hoy', // 'turnos_hoy' o 'padron_gcba'
+    regionActiva: 'todas',
+    estadoFiltroActivo: 'todos', // 'todos' | 'turno' | 'abiertas' | '24h'
     farmaciasCargadas: [],
     farmaciasFiltradas: [],
     farmaciaSeleccionadaId: null,
@@ -77,27 +88,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // 3. INICIALIZACIÓN
   // --------------------------------------------------------------------------
   function iniciar() {
-    // 1. Iniciar mapa interactivo Leaflet
+    // 1. Iniciar visor cartográfico Leaflet
     ModuloMapa.inicializar('mapa-leaflet');
 
-    // 2. Configurar fecha y reloj de Argentina
+    // 2. Configurar reloj oficial de Argentina y barra de vigencia de turnos
     actualizarFechaHoraArgentina();
-    setInterval(actualizarFechaHoraArgentina, 30000);
+    actualizarBarraVigencia();
+    setInterval(() => {
+      actualizarFechaHoraArgentina();
+      actualizarBarraVigencia();
+    }, 30000);
 
-    // 3. Poblar selectores de Partidos y Localidades
+    // 3. Poblar selectores jerárquicos de Partidos y Localidades
     const jurInicial = elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas';
     poblarSelectorPartidos(jurInicial);
-    poblarSelectorLocalidades(jurInicial, 'todos');
+    poblarSelectorLocalidades(jurInicial, 'todos', 'todas');
 
-    // 4. Registrar eventos de la interfaz
+    // 4. Registrar todos los manejadores de eventos
     configurarEventos();
 
-    // 5. Cargar datos iniciales
+    // 5. Cargar catálogo de farmacias
     cargarDatos();
   }
 
   // --------------------------------------------------------------------------
-  // 4. FECHA Y HORA OFICIAL DE ARGENTINA
+  // 4. FECHA, HORA Y VIGENCIA REGLAMENTARIA (FARMAP)
   // --------------------------------------------------------------------------
   function actualizarFechaHoraArgentina() {
     const info = ApiFarmacias.obtenerFechaHoraArgentina();
@@ -109,8 +124,21 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   }
 
+  function actualizarBarraVigencia() {
+    const vigencia = ApiFarmacias.obtenerInfoValidezTurno();
+    if (elementos.badgeVigenciaTurno) {
+      elementos.badgeVigenciaTurno.innerHTML = `<i class="bi bi-shield-fill-check me-1"></i> Guardia Reglamentaria (Ley 10.606)`;
+    }
+    if (elementos.textoVigenciaDetalle) {
+      elementos.textoVigenciaDetalle.innerHTML = `Turno oficial de 24hs: <strong>${vigencia.validoHastaTexto}</strong>. Horario comercial activo hasta las 20:00 hs.`;
+    }
+    if (elementos.textoActualizadoTimestamp) {
+      elementos.textoActualizadoTimestamp.innerHTML = `<i class="bi bi-clock-history me-1"></i> Actualizado a las ${vigencia.horaActualTexto}`;
+    }
+  }
+
   // --------------------------------------------------------------------------
-  // 5. CARGA Y SINCRONIZACIÓN DE DATOS
+  // 5. CARGA Y FILTRADO DE DATOS
   // --------------------------------------------------------------------------
   async function cargarDatos() {
     mostrarEstado('cargando');
@@ -118,36 +146,49 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const filtros = obtenerValoresFiltros();
 
-      if (estadoApp.modoFuente === 'turnos_hoy') {
-        estadoApp.farmaciasCargadas = await ApiFarmacias.obtenerFarmaciasTurnoHoy(filtros);
+      let farmacias = [];
+      if (estadoApp.modoFuente === 'padron_gcba') {
+        farmacias = await ApiFarmacias.obtenerPadronOficialGCBA(filtros);
       } else {
-        estadoApp.farmaciasCargadas = await ApiFarmacias.obtenerPadronOficialGCBA(filtros);
+        farmacias = await ApiFarmacias.obtenerFarmaciasTurnoHoy(filtros);
       }
 
-      // Si el usuario compartió ubicación, calcular distancias y ordenar
+      estadoApp.farmaciasCargadas = farmacias;
+
+      // Si el usuario proporcionó su ubicación, calcular distancias y ordenar por cercanía
       if (estadoApp.posicionUsuario) {
-        calcularDistanciasYOrdenar(estadoApp.posicionUsuario.lat, estadoApp.posicionUsuario.lng);
+        calcularDistanciasYOrdenar();
       } else {
-        estadoApp.farmaciasFiltradas = [...estadoApp.farmaciasCargadas];
+        // Priorizar farmacias de turno o abiertas al principio
+        estadoApp.farmaciasFiltradas = [...farmacias].sort((a, b) => {
+          if (a.tipoServicio === '24h' && b.tipoServicio !== '24h') return -1;
+          if (b.tipoServicio === '24h' && a.tipoServicio !== '24h') return 1;
+          if (a.deTurnoHoy && !b.deTurnoHoy) return -1;
+          if (!a.deTurnoHoy && b.deTurnoHoy) return 1;
+          if (a.abiertaAhora && !b.abiertaAhora) return -1;
+          if (!a.abiertaAhora && b.abiertaAhora) return 1;
+          return a.nombre.localeCompare(b.nombre, 'es');
+        });
       }
 
       renderizarResultados();
     } catch (error) {
-      console.error('Error al cargar farmacias:', error);
-      mostrarEstado('error', error.message);
+      console.error('Error durante la carga de datos:', error);
+      mostrarEstado('error', error.message || 'Error de comunicación con la base de datos.');
     }
   }
 
-  // --------------------------------------------------------------------------
-  // 6. GESTIÓN DE FILTROS Y SELECTORES
-  // --------------------------------------------------------------------------
+  /**
+   * Recopila todos los criterios de filtrado seleccionados en la UI.
+   */
   function obtenerValoresFiltros() {
     return {
-      jurisdiccion: elementos.selectJurisdiccion.value,
-      partido: elementos.selectPartido.value,
-      localidad: elementos.selectLocalidad.value,
-      query: elementos.inputBusqueda.value,
-      soloAbiertas: elementos.checkSoloAbiertas.checked
+      jurisdiccion: elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas',
+      region: estadoApp.regionActiva,
+      partido: elementos.selectPartido ? elementos.selectPartido.value : 'todos',
+      localidad: elementos.selectLocalidad ? elementos.selectLocalidad.value : 'todas',
+      query: elementos.inputBusqueda ? elementos.inputBusqueda.value.trim() : '',
+      estadoFiltro: estadoApp.estadoFiltroActivo
     };
   }
 
@@ -156,80 +197,146 @@ document.addEventListener('DOMContentLoaded', () => {
    */
   function poblarSelectorPartidos(jurisdiccion) {
     const partidos = ApiFarmacias.obtenerPartidosDisponibles(jurisdiccion);
-    const valorPrevio = elementos.selectPartido.value;
+    const valorPrevio = elementos.selectPartido ? elementos.selectPartido.value : 'todos';
 
-    let textoDefault = 'Todos los partidos / comunas';
+    let textoDefault = 'Todos los municipios / comunas';
     if (jurisdiccion === 'caba') textoDefault = 'Todas las comunas de CABA';
     if (jurisdiccion === 'pba') textoDefault = 'Todos los municipios de PBA';
 
-    elementos.selectPartido.innerHTML = `<option value="todos">${textoDefault}</option>`;
-
-    partidos.forEach(p => {
-      const option = document.createElement('option');
-      option.value = p;
-      option.textContent = p;
-      if (p === valorPrevio) option.selected = true;
-      elementos.selectPartido.appendChild(option);
-    });
+    if (elementos.selectPartido) {
+      elementos.selectPartido.innerHTML = `<option value="todos">${textoDefault}</option>`;
+      partidos.forEach(p => {
+        const option = document.createElement('option');
+        option.value = p;
+        option.textContent = p;
+        if (p === valorPrevio) option.selected = true;
+        elementos.selectPartido.appendChild(option);
+      });
+    }
   }
 
   /**
-   * Puebla el selector de Localidades según la jurisdicción y el partido seleccionado.
+   * Puebla el selector de Localidades según jurisdicción, partido y región.
    */
-  function poblarSelectorLocalidades(jurisdiccion, partido = 'todos') {
-    const localidades = ApiFarmacias.obtenerLocalidadesDisponibles(jurisdiccion, partido);
-    const valorPrevio = elementos.selectLocalidad.value;
+  function poblarSelectorLocalidades(jurisdiccion, partido = 'todos', region = 'todas') {
+    const localidades = ApiFarmacias.obtenerLocalidadesDisponibles(jurisdiccion, partido, region);
+    const valorPrevio = elementos.selectLocalidad ? elementos.selectLocalidad.value : 'todas';
 
     let textoDefault = 'Todas las localidades';
     if (partido !== 'todos') textoDefault = `Todas las localidades de ${partido}`;
 
-    elementos.selectLocalidad.innerHTML = `<option value="todas">${textoDefault}</option>`;
-
-    localidades.forEach(loc => {
-      const option = document.createElement('option');
-      option.value = loc;
-      option.textContent = loc;
-      if (loc === valorPrevio) option.selected = true;
-      elementos.selectLocalidad.appendChild(option);
-    });
+    if (elementos.selectLocalidad) {
+      elementos.selectLocalidad.innerHTML = `<option value="todas">${textoDefault}</option>`;
+      localidades.forEach(loc => {
+        const option = document.createElement('option');
+        option.value = loc;
+        option.textContent = loc;
+        if (loc === valorPrevio) option.selected = true;
+        elementos.selectLocalidad.appendChild(option);
+      });
+    }
   }
 
   /**
    * Restablece todos los filtros al estado inicial abarcativo (toda la provincia y CABA).
    */
   function limpiarTodosLosFiltros() {
-    elementos.inputBusqueda.value = '';
-    elementos.btnLimpiarBusqueda.classList.add('d-none');
-    elementos.selectJurisdiccion.value = 'todas';
-    poblarSelectorPartidos('todas');
-    elementos.selectPartido.value = 'todos';
-    poblarSelectorLocalidades('todas', 'todos');
-    elementos.selectLocalidad.value = 'todas';
-    elementos.checkSoloAbiertas.checked = false;
+    if (elementos.inputBusqueda) {
+      elementos.inputBusqueda.value = '';
+    }
+    if (elementos.btnLimpiarBusqueda) {
+      elementos.btnLimpiarBusqueda.classList.add('d-none');
+    }
 
-    actualizarBadgeJurisdiccion();
+    estadoApp.regionActiva = 'todas';
+    activarChipRegionVisual('todas');
+
+    estadoApp.estadoFiltroActivo = 'todos';
+    activarChipEstadoVisual('todos');
+
+    if (elementos.selectJurisdiccion) {
+      elementos.selectJurisdiccion.value = 'todas';
+    }
+    poblarSelectorPartidos('todas');
+    if (elementos.selectPartido) {
+      elementos.selectPartido.value = 'todos';
+    }
+    poblarSelectorLocalidades('todas', 'todos', 'todas');
+    if (elementos.selectLocalidad) {
+      elementos.selectLocalidad.value = 'todas';
+    }
+
+    actualizarBadgesEncabezado();
     cargarDatos();
   }
 
-  function actualizarBadgeJurisdiccion() {
-    const jur = elementos.selectJurisdiccion.value;
-    const partido = elementos.selectPartido.value;
+  function actualizarBadgesEncabezado() {
+    const jur = elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas';
+    const partido = elementos.selectPartido ? elementos.selectPartido.value : 'todos';
 
-    if (!elementos.badgeJurisdiccionActiva) return;
+    if (elementos.badgeJurisdiccionActiva) {
+      if (partido !== 'todos') {
+        elementos.badgeJurisdiccionActiva.textContent = `Partido: ${partido}`;
+      } else if (estadoApp.regionActiva !== 'todas') {
+        const nombresRegiones = {
+          caba: 'CABA (Capital Federal)',
+          oeste: 'Corredor Oeste Bonaerense',
+          costa: 'Costa Atlántica Bonaerense',
+          interior: 'Interior Bonaerense (Ruta 5)',
+          norte: 'Zona Norte Conurbano',
+          sur: 'Zona Sur Conurbano',
+          laplata: 'Gran La Plata',
+          grandes: 'Grandes Ciudades del Interior'
+        };
+        elementos.badgeJurisdiccionActiva.textContent = nombresRegiones[estadoApp.regionActiva] || 'Región filtrada';
+      } else if (jur === 'caba') {
+        elementos.badgeJurisdiccionActiva.textContent = 'Ciudad Autónoma de Buenos Aires';
+      } else if (jur === 'pba') {
+        elementos.badgeJurisdiccionActiva.textContent = 'Provincia de Buenos Aires (Todos los municipios)';
+      } else {
+        elementos.badgeJurisdiccionActiva.textContent = 'CABA y toda la Provincia de Buenos Aires';
+      }
+    }
 
-    if (partido !== 'todos') {
-      elementos.badgeJurisdiccionActiva.textContent = `Partido: ${partido}`;
-    } else if (jur === 'caba') {
-      elementos.badgeJurisdiccionActiva.textContent = 'Ciudad Autónoma de Buenos Aires';
-    } else if (jur === 'pba') {
-      elementos.badgeJurisdiccionActiva.textContent = 'Provincia de Buenos Aires (Todos los municipios)';
-    } else {
-      elementos.badgeJurisdiccionActiva.textContent = 'CABA y toda la Provincia de Buenos Aires';
+    if (elementos.badgeTurnoResumen) {
+      if (estadoApp.estadoFiltroActivo === 'turno') {
+        elementos.badgeTurnoResumen.textContent = 'Mostrando: Solo farmacias de turno';
+      } else if (estadoApp.estadoFiltroActivo === 'abiertas') {
+        elementos.badgeTurnoResumen.textContent = 'Mostrando: Abiertas en este momento';
+      } else if (estadoApp.estadoFiltroActivo === '24h') {
+        elementos.badgeTurnoResumen.textContent = 'Mostrando: Farmacias 24hs permanente';
+      } else {
+        elementos.badgeTurnoResumen.textContent = 'Guardia oficial 24hs activa';
+      }
     }
   }
 
+  function activarChipRegionVisual(regionSlug) {
+    if (!elementos.contenedorChipsRegion) return;
+    const chips = elementos.contenedorChipsRegion.querySelectorAll('.filter-chip');
+    chips.forEach(chip => {
+      if (chip.getAttribute('data-region') === regionSlug) {
+        chip.classList.add('active');
+      } else {
+        chip.classList.remove('active');
+      }
+    });
+  }
+
+  function activarChipEstadoVisual(estadoSlug) {
+    if (!elementos.contenedorChipsEstado) return;
+    const chips = elementos.contenedorChipsEstado.querySelectorAll('.duty-chip');
+    chips.forEach(chip => {
+      if (chip.getAttribute('data-estado') === estadoSlug) {
+        chip.classList.add('active');
+      } else {
+        chip.classList.remove('active');
+      }
+    });
+  }
+
   // --------------------------------------------------------------------------
-  // 7. RENDERIZADO DE RESULTADOS (TARJETAS + MAPA)
+  // 6. RENDERIZADO DE RESULTADOS (TARJETAS + MAPA)
   // --------------------------------------------------------------------------
   function renderizarResultados() {
     const total = estadoApp.farmaciasFiltradas.length;
@@ -238,59 +345,75 @@ document.addEventListener('DOMContentLoaded', () => {
       elementos.contadorMovilLista.textContent = total;
     }
 
-    actualizarBadgeJurisdiccion();
+    actualizarBadgesEncabezado();
 
     if (total === 0) {
       mostrarEstado('vacio');
-      elementos.resumenResultados.textContent = '0 farmacias encontradas para el criterio de búsqueda.';
-      ModuloMapa.renderizarMarcadores([], null, elementos.selectJurisdiccion.value);
+      if (elementos.resumenResultados) {
+        elementos.resumenResultados.textContent = '0 farmacias encontradas para el criterio de búsqueda.';
+      }
+      ModuloMapa.renderizarMarcadores([], null, estadoApp.regionActiva !== 'todas' ? estadoApp.regionActiva : (elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas'));
       return;
     }
 
-    // Construcción del texto de resumen
-    const jur = elementos.selectJurisdiccion.value;
-    const partido = elementos.selectPartido.value;
-    const loc = elementos.selectLocalidad.value;
+    // Construcción del texto de resumen amigable
+    const jur = elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas';
+    const partido = elementos.selectPartido ? elementos.selectPartido.value : 'todos';
+    const loc = elementos.selectLocalidad ? elementos.selectLocalidad.value : 'todas';
 
     let lugarTexto = 'en Buenos Aires';
     if (loc !== 'todas') {
-      lugarTexto = `en ${loc} (${partido !== 'todos' ? partido : ''})`;
+      lugarTexto = `en ${loc}${partido !== 'todos' ? ` (${partido})` : ''}`;
     } else if (partido !== 'todos') {
       lugarTexto = `en el partido de ${partido}`;
+    } else if (estadoApp.regionActiva !== 'todas') {
+      lugarTexto = 'en la zona seleccionada';
     } else if (jur === 'caba') {
       lugarTexto = 'en CABA';
     } else if (jur === 'pba') {
       lugarTexto = 'en la Provincia de Buenos Aires';
     }
 
-    const textoAbiertas = elementos.checkSoloAbiertas.checked ? ' (abiertas en este momento)' : '';
-    elementos.resumenResultados.innerHTML = `Mostrando <strong>${total}</strong> farmacia${total === 1 ? '' : 's'} ${lugarTexto}${textoAbiertas}`;
+    let estadoTexto = '';
+    if (estadoApp.estadoFiltroActivo === 'turno') estadoTexto = ' (de turno hoy)';
+    if (estadoApp.estadoFiltroActivo === 'abiertas') estadoTexto = ' (abiertas ahora)';
+    if (estadoApp.estadoFiltroActivo === '24h') estadoTexto = ' (24 horas)';
+
+    if (elementos.resumenResultados) {
+      elementos.resumenResultados.innerHTML = `Mostrando <strong>${total}</strong> farmacia${total === 1 ? '' : 's'} ${lugarTexto}${estadoTexto}`;
+    }
 
     // Renderizar tarjetas en la lista
-    elementos.contenedorTarjetas.innerHTML = '';
-    const fragment = document.createDocumentFragment();
+    if (elementos.contenedorTarjetas) {
+      elementos.contenedorTarjetas.innerHTML = '';
+      const fragment = document.createDocumentFragment();
 
-    estadoApp.farmaciasFiltradas.forEach(farmacia => {
-      const tarjeta = crearElementoTarjeta(farmacia);
-      fragment.appendChild(tarjeta);
-    });
+      estadoApp.farmaciasFiltradas.forEach(farmacia => {
+        const tarjeta = crearElementoTarjeta(farmacia);
+        fragment.appendChild(tarjeta);
+      });
 
-    elementos.contenedorTarjetas.appendChild(fragment);
+      elementos.contenedorTarjetas.appendChild(fragment);
+    }
 
-    // Renderizar marcadores en el mapa Leaflet con la jurisdicción activa
+    // Renderizar marcadores en el mapa Leaflet
+    const claveRegionOJur = estadoApp.regionActiva !== 'todas'
+      ? estadoApp.regionActiva
+      : (elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas');
+
     ModuloMapa.renderizarMarcadores(
       estadoApp.farmaciasFiltradas,
       (idSeleccionado) => {
         resaltarTarjeta(idSeleccionado, true);
       },
-      elementos.selectJurisdiccion.value
+      claveRegionOJur
     );
 
     mostrarEstado('exito');
   }
 
   /**
-   * Crea el elemento HTML de la tarjeta de una farmacia con accesibilidad completa.
+   * Crea el elemento HTML de la tarjeta de una farmacia con badges estilo FarMap.
    */
   function crearElementoTarjeta(farmacia) {
     const card = document.createElement('article');
@@ -300,24 +423,24 @@ document.addEventListener('DOMContentLoaded', () => {
     card.setAttribute('role', 'region');
     card.setAttribute('aria-label', `Farmacia ${farmacia.nombre}`);
 
-    // Badges según tipo de guardia
+    // Badges según tipo de guardia (FarMap)
     let badgeTurno = '';
     if (farmacia.tipoServicio === '24h') {
       badgeTurno = `
         <span class="badge-24h">
-          <i class="bi bi-clock-history" aria-hidden="true"></i> 24 Horas
+          <i class="bi bi-clock-history" aria-hidden="true"></i> 24 Horas Permanente
         </span>
       `;
     } else if (farmacia.deTurnoHoy) {
       badgeTurno = `
         <span class="badge-duty">
-          <i class="bi bi-shield-fill-check" aria-hidden="true"></i> De Turno Hoy
+          <i class="bi bi-shield-fill-check" aria-hidden="true"></i> DE TURNO HOY
         </span>
       `;
     } else {
       badgeTurno = `
         <span class="badge-regular">
-          <i class="bi bi-hospital" aria-hidden="true"></i> Padrón
+          <i class="bi bi-hospital" aria-hidden="true"></i> Horario Comercial
         </span>
       `;
     }
@@ -393,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
         </div>
       </div>
 
-      <!-- Acciones de la tarjeta -->
+      <!-- Acciones de la tarjeta estilo FarMap -->
       <div class="card-actions d-flex align-items-center justify-content-between gap-2 pt-2 border-top">
         <button type="button" class="btn btn-outline-success btn-sm rounded-pill btn-ver-en-mapa" data-id="${farmacia.id}">
           <i class="bi bi-pin-map-fill me-1" aria-hidden="true"></i> Ver en mapa
@@ -413,7 +536,7 @@ document.addEventListener('DOMContentLoaded', () => {
       </div>
     `;
 
-    // Clic en la tarjeta
+    // Clic en la tarjeta para resaltar y centrar mapa
     card.addEventListener('click', (e) => {
       if (e.target.closest('a') || e.target.closest('button')) return;
       seleccionarFarmacia(farmacia.id);
@@ -448,7 +571,11 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   function resaltarTarjeta(idFarmacia, hacerScroll = true) {
-    document.querySelectorAll('.pharmacy-card').forEach(c => c.classList.remove('active-card'));
+    if (!elementos.contenedorTarjetas) return;
+
+    const tarjetasPrevias = elementos.contenedorTarjetas.querySelectorAll('.pharmacy-card.active-card');
+    tarjetasPrevias.forEach(t => t.classList.remove('active-card'));
+
     const tarjeta = document.getElementById(`card-${idFarmacia}`);
     if (tarjeta) {
       tarjeta.classList.add('active-card');
@@ -459,53 +586,52 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // --------------------------------------------------------------------------
-  // 8. CONTROL DE ESTADOS DE LA INTERFAZ (CARGA, ERROR, VACÍO)
+  // 7. GESTIÓN DE ESTADOS DE LA INTERFAZ
   // --------------------------------------------------------------------------
-  function mostrarEstado(estado, detalleError = '') {
-    elementos.estadoCargando.classList.add('d-none');
-    elementos.estadoError.classList.add('d-none');
-    elementos.estadoVacio.classList.add('d-none');
+  function mostrarEstado(tipo, mensajeDetalle = '') {
+    if (elementos.estadoCargando) elementos.estadoCargando.classList.add('d-none');
+    if (elementos.estadoError) elementos.estadoError.classList.add('d-none');
+    if (elementos.estadoVacio) elementos.estadoVacio.classList.add('d-none');
+    if (elementos.contenedorTarjetas) elementos.contenedorTarjetas.classList.remove('d-none');
 
-    if (estado === 'cargando') {
-      elementos.estadoCargando.classList.remove('d-none');
-      elementos.contenedorTarjetas.innerHTML = '';
-    } else if (estado === 'error') {
-      elementos.estadoError.classList.remove('d-none');
-      if (elementos.mensajeErrorDetalle) {
-        elementos.mensajeErrorDetalle.textContent = detalleError || 'Ocurrió un error al consultar la fuente de datos.';
-      }
-    } else if (estado === 'vacio') {
-      elementos.estadoVacio.classList.remove('d-none');
-      elementos.contenedorTarjetas.innerHTML = '';
-
-      if (elementos.textoEstadoVacio) {
-        const jur = elementos.selectJurisdiccion.value;
-        const part = elementos.selectPartido.value;
-        let zona = 'el criterio de búsqueda';
-        if (part !== 'todos') zona = `el partido de ${part}`;
-        else if (jur === 'pba') zona = 'la Provincia de Buenos Aires';
-        else if (jur === 'caba') zona = 'CABA';
-
-        elementos.textoEstadoVacio.textContent = `No se encontraron farmacias para ${zona} con los filtros seleccionados. Probá seleccionando otro municipio o restableciendo los filtros.`;
-      }
-    } else if (estado === 'exito') {
-      // Resultados visibles en contenedorTarjetas
+    switch (tipo) {
+      case 'cargando':
+        if (elementos.estadoCargando) elementos.estadoCargando.classList.remove('d-none');
+        if (elementos.contenedorTarjetas) elementos.contenedorTarjetas.classList.add('d-none');
+        break;
+      case 'error':
+        if (elementos.estadoError) {
+          elementos.estadoError.classList.remove('d-none');
+          if (elementos.mensajeErrorDetalle && mensajeDetalle) {
+            elementos.mensajeErrorDetalle.textContent = mensajeDetalle;
+          }
+        }
+        if (elementos.contenedorTarjetas) elementos.contenedorTarjetas.classList.add('d-none');
+        break;
+      case 'vacio':
+        if (elementos.estadoVacio) elementos.estadoVacio.classList.remove('d-none');
+        if (elementos.contenedorTarjetas) elementos.contenedorTarjetas.classList.add('d-none');
+        break;
+      case 'exito':
+      default:
+        // Las tarjetas quedan visibles
+        break;
     }
   }
 
   // --------------------------------------------------------------------------
-  // 9. GEOLOCALIZACIÓN DEL USUARIO ("Cerca de mí")
+  // 8. GEOLOCALIZACIÓN Y DISTANCIAS
   // --------------------------------------------------------------------------
-  function obtenerUbicacionUsuario() {
+  function solicitarUbicacionUsuario() {
     if (!navigator.geolocation) {
-      alert('Tu navegador no admite geolocalización.');
+      alert('Tu navegador no soporta geolocalización.');
       return;
     }
 
-    const btn = elementos.btnMiUbicacion;
-    const textoOriginal = btn.innerHTML;
-    btn.disabled = true;
-    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Localizando...';
+    if (elementos.btnMiUbicacion) {
+      elementos.btnMiUbicacion.disabled = true;
+      elementos.btnMiUbicacion.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status"></span> Localizando...';
+    }
 
     navigator.geolocation.getCurrentPosition(
       (posicion) => {
@@ -513,165 +639,262 @@ document.addEventListener('DOMContentLoaded', () => {
         estadoApp.posicionUsuario = { lat: latitude, lng: longitude };
 
         ModuloMapa.marcarUbicacionUsuario(latitude, longitude);
-        calcularDistanciasYOrdenar(latitude, longitude);
+        calcularDistanciasYOrdenar();
         renderizarResultados();
 
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-geo-alt-fill text-success"></i> Ubicado';
+        if (elementos.btnMiUbicacion) {
+          elementos.btnMiUbicacion.disabled = false;
+          elementos.btnMiUbicacion.classList.replace('btn-light', 'btn-primary');
+          elementos.btnMiUbicacion.classList.replace('text-primary', 'text-white');
+          elementos.btnMiUbicacion.innerHTML = '<i class="bi bi-geo-alt-fill me-1"></i> Mi Ubicación Activa';
+        }
       },
       (error) => {
-        console.warn('Error en geolocalización:', error);
-        btn.disabled = false;
-        btn.innerHTML = textoOriginal;
-        alert('No se pudo acceder a tu ubicación. Asegurate de otorgar permisos en tu navegador.');
+        console.warn('Geolocalización rechazada o no disponible:', error);
+        if (elementos.btnMiUbicacion) {
+          elementos.btnMiUbicacion.disabled = false;
+          elementos.btnMiUbicacion.innerHTML = '<i class="bi bi-crosshair me-1"></i> Cerca de mí';
+        }
+        alert('No se pudo acceder a tu ubicación. Verificá los permisos de ubicación en tu navegador.');
       },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
   }
 
   function calcularDistanciaKm(lat1, lon1, lat2, lon2) {
-    const R = 6371;
-    const dLat = (lat2 - lat1) * (Math.PI / 180);
-    const dLon = (lon2 - lon1) * (Math.PI / 180);
+    const R = 6371; // Radio de la Tierra en km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
     const a =
       Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1 * (Math.PI / 180)) * Math.cos(lat2 * (Math.PI / 180)) *
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
       Math.sin(dLon / 2) * Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     return R * c;
   }
 
-  function calcularDistanciasYOrdenar(userLat, userLng) {
-    estadoApp.farmaciasFiltradas = estadoApp.farmaciasCargadas.map(f => {
-      const dist = calcularDistanciaKm(userLat, userLng, f.lat, f.lng);
-      return { ...f, distanciaKm: dist };
-    }).sort((a, b) => a.distanciaKm - b.distanciaKm);
+  function calcularDistanciasYOrdenar() {
+    if (!estadoApp.posicionUsuario) return;
+    const { lat, lng } = estadoApp.posicionUsuario;
+
+    estadoApp.farmaciasFiltradas.forEach(f => {
+      if (typeof f.lat === 'number' && typeof f.lng === 'number') {
+        f.distanciaKm = calcularDistanciaKm(lat, lng, f.lat, f.lng);
+      } else {
+        f.distanciaKm = 99999;
+      }
+    });
+
+    estadoApp.farmaciasFiltradas.sort((a, b) => (a.distanciaKm || 99999) - (b.distanciaKm || 99999));
   }
 
   // --------------------------------------------------------------------------
-  // 10. ADAPTACIÓN PARA MÓVILES (PESTAÑAS LISTA / MAPA)
+  // 9. VISTA EN DISPOSITIVOS MÓVILES (PESTAÑAS LISTA / MAPA)
   // --------------------------------------------------------------------------
-  function cambiarPestanaMovil(vista) {
-    estadoApp.vistaMovilActiva = vista;
+  function cambiarPestanaMovil(pestana) {
+    estadoApp.vistaMovilActiva = pestana;
 
-    if (vista === 'lista') {
-      elementos.tabBtnLista.classList.add('active', 'btn-success');
-      elementos.tabBtnLista.classList.remove('btn-outline-secondary');
-      elementos.tabBtnMapa.classList.remove('active', 'btn-success');
-      elementos.tabBtnMapa.classList.add('btn-outline-secondary');
-
-      elementos.columnaLista.classList.remove('view-hidden-mobile');
-      elementos.columnaMapa.classList.add('view-hidden-mobile');
+    if (pestana === 'lista') {
+      if (elementos.tabBtnLista) elementos.tabBtnLista.classList.add('active');
+      if (elementos.tabBtnMapa) elementos.tabBtnMapa.classList.remove('active');
+      if (elementos.columnaLista) elementos.columnaLista.classList.remove('d-none');
+      if (elementos.columnaMapa) elementos.columnaMapa.classList.add('view-hidden-mobile');
     } else {
-      elementos.tabBtnMapa.classList.add('active', 'btn-success');
-      elementos.tabBtnMapa.classList.remove('btn-outline-secondary');
-      elementos.tabBtnLista.classList.remove('active', 'btn-success');
-      elementos.tabBtnLista.classList.add('btn-outline-secondary');
-
-      elementos.columnaMapa.classList.remove('view-hidden-mobile');
-      elementos.columnaLista.classList.add('view-hidden-mobile');
-
+      if (elementos.tabBtnMapa) elementos.tabBtnMapa.classList.add('active');
+      if (elementos.tabBtnLista) elementos.tabBtnLista.classList.remove('active');
+      if (elementos.columnaMapa) elementos.columnaMapa.classList.remove('view-hidden-mobile');
+      if (elementos.columnaLista) elementos.columnaLista.classList.add('d-none');
       ModuloMapa.refrescarTamano();
     }
   }
 
   // --------------------------------------------------------------------------
-  // 11. CONFIGURACIÓN DE EVENTOS
+  // 10. CONFIGURACIÓN DE EVENTOS
   // --------------------------------------------------------------------------
   function configurarEventos() {
-    // Búsqueda de texto con debounce
-    elementos.inputBusqueda.addEventListener('input', () => {
-      const valor = elementos.inputBusqueda.value.trim();
-      if (valor.length > 0) {
-        elementos.btnLimpiarBusqueda.classList.remove('d-none');
-      } else {
-        elementos.btnLimpiarBusqueda.classList.add('d-none');
-      }
+    // 1. Chips de Región Rápida (Estilo FarMap)
+    if (elementos.contenedorChipsRegion) {
+      elementos.contenedorChipsRegion.addEventListener('click', (e) => {
+        const btn = e.target.closest('.filter-chip');
+        if (!btn) return;
 
-      clearTimeout(estadoApp.debounceBusquedaTimeout);
-      estadoApp.debounceBusquedaTimeout = setTimeout(() => {
+        const region = btn.getAttribute('data-region') || 'todas';
+        estadoApp.regionActiva = region;
+        activarChipRegionVisual(region);
+
+        // Ajustar select de jurisdicción automáticamente
+        if (elementos.selectJurisdiccion) {
+          if (region === 'caba') {
+            elementos.selectJurisdiccion.value = 'caba';
+          } else if (region !== 'todas') {
+            elementos.selectJurisdiccion.value = 'pba';
+          } else {
+            elementos.selectJurisdiccion.value = 'todas';
+          }
+        }
+
+        const jur = elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas';
+        poblarSelectorPartidos(jur);
+        if (elementos.selectPartido) elementos.selectPartido.value = 'todos';
+        poblarSelectorLocalidades(jur, 'todos', region);
+        if (elementos.selectLocalidad) elementos.selectLocalidad.value = 'todas';
+
         cargarDatos();
-      }, 300);
-    });
+      });
+    }
 
-    elementos.btnLimpiarBusqueda.addEventListener('click', () => {
-      elementos.inputBusqueda.value = '';
-      elementos.btnLimpiarBusqueda.classList.add('d-none');
-      cargarDatos();
-      elementos.inputBusqueda.focus();
-    });
+    // 2. Chips de Estado de Guardia (Estilo FarMap: turno | abiertas | 24h)
+    if (elementos.contenedorChipsEstado) {
+      elementos.contenedorChipsEstado.addEventListener('click', (e) => {
+        const btn = e.target.closest('.duty-chip');
+        if (!btn) return;
 
-    // Cambio de jurisdicción: actualiza selectores dependientes
-    elementos.selectJurisdiccion.addEventListener('change', () => {
-      const jur = elementos.selectJurisdiccion.value;
-      poblarSelectorPartidos(jur);
-      poblarSelectorLocalidades(jur, 'todos');
-      actualizarBadgeJurisdiccion();
-      cargarDatos();
-    });
+        const estadoSlug = btn.getAttribute('data-estado') || 'todos';
+        estadoApp.estadoFiltroActivo = estadoSlug;
+        activarChipEstadoVisual(estadoSlug);
 
-    // Cambio de partido: actualiza localidades pertenecientes a ese partido
-    elementos.selectPartido.addEventListener('change', () => {
-      const jur = elementos.selectJurisdiccion.value;
-      const partido = elementos.selectPartido.value;
-      poblarSelectorLocalidades(jur, partido);
-      actualizarBadgeJurisdiccion();
-      cargarDatos();
-    });
+        cargarDatos();
+      });
+    }
 
-    // Cambio de localidad
-    elementos.selectLocalidad.addEventListener('change', () => {
-      cargarDatos();
-    });
+    // 3. Cambio de Jurisdicción (CABA vs PBA)
+    if (elementos.selectJurisdiccion) {
+      elementos.selectJurisdiccion.addEventListener('change', () => {
+        const jur = elementos.selectJurisdiccion.value;
+        estadoApp.regionActiva = jur === 'caba' ? 'caba' : 'todas';
+        activarChipRegionVisual(estadoApp.regionActiva);
 
-    // Switch solo abiertas
-    elementos.checkSoloAbiertas.addEventListener('change', () => {
-      cargarDatos();
-    });
+        poblarSelectorPartidos(jur);
+        poblarSelectorLocalidades(jur, 'todos', estadoApp.regionActiva);
 
-    // Botones de acción
-    elementos.btnLimpiarFiltros.addEventListener('click', limpiarTodosLosFiltros);
-    elementos.btnVaciarFiltrosAccion.addEventListener('click', limpiarTodosLosFiltros);
-    elementos.btnActualizar.addEventListener('click', cargarDatos);
-    elementos.btnReintentar.addEventListener('click', cargarDatos);
-    elementos.btnMiUbicacion.addEventListener('click', obtenerUbicacionUsuario);
+        actualizarBadgesEncabezado();
+        cargarDatos();
+      });
+    }
 
-    // Botón reencuadrar mapa
-    elementos.btnMapaRestablecer.addEventListener('click', () => {
-      ModuloMapa.ajustarEncuadre(elementos.selectJurisdiccion.value);
-    });
+    // 4. Cambio de Partido / Comuna
+    if (elementos.selectPartido) {
+      elementos.selectPartido.addEventListener('change', () => {
+        const jur = elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas';
+        const partido = elementos.selectPartido.value;
+        poblarSelectorLocalidades(jur, partido, estadoApp.regionActiva);
 
-    // Conmutador del padrón oficial GCBA (solo CABA)
-    elementos.switchFuenteOficial.addEventListener('change', (e) => {
-      if (e.target.checked) {
-        estadoApp.modoFuente = 'padron_gcba';
-        elementos.badgeModoActivo.textContent = 'Modo: Padrón Oficial GCBA';
-        elementos.badgeModoActivo.className = 'badge bg-secondary text-white';
-        elementos.textoExplicativoModo.innerHTML = 'Mostrando catálogo de farmacias habilitadas de <strong>Buenos Aires Data</strong> (Ministerio de Salud GCBA). La fuente oficial gubernamental abarca CABA y no incluye turnos en tiempo real.';
-        elementos.selectJurisdiccion.value = 'caba';
-        poblarSelectorPartidos('caba');
-        poblarSelectorLocalidades('caba', 'todos');
-      } else {
-        estadoApp.modoFuente = 'turnos_hoy';
-        elementos.badgeModoActivo.textContent = 'Modo: Turnos del Día';
-        elementos.badgeModoActivo.className = 'badge bg-primary text-white';
-        elementos.textoExplicativoModo.innerHTML = 'Cobertura ampliada: CABA y municipios de la Provincia de Buenos Aires. Farmacias verificadas con guardia de hoy calculada. <strong>Recomendamos llamar antes de salir</strong>.';
-        elementos.selectJurisdiccion.value = 'todas';
-        poblarSelectorPartidos('todas');
-        poblarSelectorLocalidades('todas', 'todos');
-      }
-      actualizarBadgeJurisdiccion();
-      cargarDatos();
-    });
+        actualizarBadgesEncabezado();
+        cargarDatos();
+      });
+    }
 
-    // Pestañas móviles
-    elementos.tabBtnLista.addEventListener('click', () => cambiarPestanaMovil('lista'));
-    elementos.tabBtnMapa.addEventListener('click', () => cambiarPestanaMovil('mapa'));
+    // 5. Cambio de Localidad / Barrio
+    if (elementos.selectLocalidad) {
+      elementos.selectLocalidad.addEventListener('change', () => {
+        actualizarBadgesEncabezado();
+        cargarDatos();
+      });
+    }
 
+    // 6. Búsqueda con debounce
+    if (elementos.inputBusqueda) {
+      elementos.inputBusqueda.addEventListener('input', () => {
+        const val = elementos.inputBusqueda.value.trim();
+        if (elementos.btnLimpiarBusqueda) {
+          if (val.length > 0) {
+            elementos.btnLimpiarBusqueda.classList.remove('d-none');
+          } else {
+            elementos.btnLimpiarBusqueda.classList.add('d-none');
+          }
+        }
+
+        clearTimeout(estadoApp.debounceBusquedaTimeout);
+        estadoApp.debounceBusquedaTimeout = setTimeout(() => {
+          cargarDatos();
+        }, 250);
+      });
+    }
+
+    // 7. Botón limpiar búsqueda
+    if (elementos.btnLimpiarBusqueda) {
+      elementos.btnLimpiarBusqueda.addEventListener('click', () => {
+        elementos.inputBusqueda.value = '';
+        elementos.btnLimpiarBusqueda.classList.add('d-none');
+        elementos.inputBusqueda.focus();
+        cargarDatos();
+      });
+    }
+
+    // 8. Botones de limpiar filtros
+    if (elementos.btnLimpiarFiltros) {
+      elementos.btnLimpiarFiltros.addEventListener('click', limpiarTodosLosFiltros);
+    }
+    if (elementos.btnVaciarFiltrosAccion) {
+      elementos.btnVaciarFiltrosAccion.addEventListener('click', limpiarTodosLosFiltros);
+    }
+
+    // 9. Botón Actualizar
+    if (elementos.btnActualizar) {
+      elementos.btnActualizar.addEventListener('click', () => {
+        actualizarFechaHoraArgentina();
+        actualizarBarraVigencia();
+        cargarDatos();
+      });
+    }
+
+    // 10. Botón Reintentar en caso de error
+    if (elementos.btnReintentar) {
+      elementos.btnReintentar.addEventListener('click', cargarDatos);
+    }
+
+    // 11. Botón Mi Ubicación (Geolocalización)
+    if (elementos.btnMiUbicacion) {
+      elementos.btnMiUbicacion.addEventListener('click', solicitarUbicacionUsuario);
+    }
+
+    // 12. Switch Padrón Oficial GCBA
+    if (elementos.switchFuenteOficial) {
+      elementos.switchFuenteOficial.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          estadoApp.modoFuente = 'padron_gcba';
+          if (elementos.selectJurisdiccion) elementos.selectJurisdiccion.value = 'caba';
+          estadoApp.regionActiva = 'caba';
+          activarChipRegionVisual('caba');
+          poblarSelectorPartidos('caba');
+          poblarSelectorLocalidades('caba', 'todos', 'caba');
+        } else {
+          estadoApp.modoFuente = 'turnos_hoy';
+        }
+        cargarDatos();
+      });
+    }
+
+    // 13. Botón Reencuadrar Mapa
+    if (elementos.btnMapaRestablecer) {
+      elementos.btnMapaRestablecer.addEventListener('click', () => {
+        const clave = estadoApp.regionActiva !== 'todas'
+          ? estadoApp.regionActiva
+          : (elementos.selectJurisdiccion ? elementos.selectJurisdiccion.value : 'todas');
+        ModuloMapa.ajustarEncuadre(clave);
+      });
+    }
+
+    // 14. Pestañas en vista móvil
+    if (elementos.tabBtnLista) {
+      elementos.tabBtnLista.addEventListener('click', () => cambiarPestanaMovil('lista'));
+    }
+    if (elementos.tabBtnMapa) {
+      elementos.tabBtnMapa.addEventListener('click', () => cambiarPestanaMovil('mapa'));
+    }
+
+    // 15. Adaptación al redimensionar ventana
     window.addEventListener('resize', () => {
-      ModuloMapa.refrescarTamano();
+      if (window.innerWidth >= 768) {
+        if (elementos.columnaLista) elementos.columnaLista.classList.remove('d-none');
+        if (elementos.columnaMapa) elementos.columnaMapa.classList.remove('view-hidden-mobile');
+        ModuloMapa.refrescarTamano();
+      } else {
+        cambiarPestanaMovil(estadoApp.vistaMovilActiva);
+      }
     });
   }
 
+  // Ejecución inicial
   iniciar();
 });

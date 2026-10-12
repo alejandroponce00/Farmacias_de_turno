@@ -5,25 +5,30 @@
  * Responsabilidad:
  * - Visor cartográfico con Leaflet.js y OpenStreetMap con cobertura para
  *   toda la Provincia de Buenos Aires y la Ciudad Autónoma de Buenos Aires.
- * - Marcadores categorizados (Turno 24hs, Guardia, 24h Permanente, Padrón General).
+ * - Marcadores categorizados y tematizados (Turno 24hs, Guardia, 24h Permanente, Horario Comercial).
  * - Ventanas emergentes (popups) con información de partido, localidad, dirección,
  *   horario de guardia, botón de llamada (`tel:`) y botón para navegar con Google Maps.
- * - Encuadre dinámico que abarca desde el AMBA hasta las ciudades del interior bonaerense.
- * - Sincronización con las tarjetas de farmacias y geolocalización del usuario.
+ * - Encuadre dinámico inteligente que abarca desde el AMBA y la Costa Atlántica
+ *   hasta las ciudades del corredor oeste y del interior bonaerense (Trenque Lauquen, Chivilcoy, etc.).
+ * - Sincronización bidireccional con las tarjetas de farmacias y geolocalización del usuario.
  */
 
 const ModuloMapa = (() => {
   'use strict';
 
-  // Centros cartográficos según jurisdicción
-  const CENTRO_PROVINCIA = [-36.5, -60.0]; // Centro geográfico de PBA
-  const ZOOM_PROVINCIA = 7;
-
-  const CENTRO_CABA = [-34.6037, -58.3816]; // Obelisco CABA
-  const ZOOM_CABA = 12;
-
-  const CENTRO_REGIONAL = [-35.5, -59.0]; // Encuadre CABA + PBA
-  const ZOOM_REGIONAL = 8;
+  // Centros cartográficos según jurisdicción y corredores regionales
+  const CENTROS_REGIONALES = {
+    todas: { coord: [-35.5, -59.0], zoom: 8 },
+    pba: { coord: [-36.5, -60.0], zoom: 7 },
+    caba: { coord: [-34.6037, -58.3816], zoom: 12 },
+    oeste: { coord: [-34.62, -58.95], zoom: 10 },
+    costa: { coord: [-36.55, -56.70], zoom: 10 },
+    interior: { coord: [-35.95, -61.50], zoom: 8 },
+    norte: { coord: [-34.45, -58.70], zoom: 10 },
+    sur: { coord: [-34.72, -58.35], zoom: 11 },
+    laplata: { coord: [-34.92, -57.95], zoom: 12 },
+    grandes: { coord: [-38.00, -58.00], zoom: 7 }
+  };
 
   let mapa = null;
   let grupoMarcadores = null;
@@ -80,9 +85,9 @@ const ModuloMapa = (() => {
     if (farmacia.tipoServicio === '24h') {
       badgeHtml = '<span class="badge bg-primary text-white mb-2"><i class="bi bi-clock-history me-1"></i>24 Horas Permanente</span>';
     } else if (farmacia.deTurnoHoy) {
-      badgeHtml = '<span class="badge bg-success text-white mb-2"><i class="bi bi-shield-check me-1"></i>De Turno Hoy</span>';
+      badgeHtml = '<span class="badge bg-success text-white mb-2"><i class="bi bi-shield-fill-check me-1"></i>De Turno Hoy</span>';
     } else {
-      badgeHtml = '<span class="badge bg-secondary text-white mb-2">Padrón General</span>';
+      badgeHtml = '<span class="badge bg-secondary text-white mb-2">Horario Comercial</span>';
     }
 
     const badgeJur = farmacia.jurisdiccion === 'caba'
@@ -136,8 +141,8 @@ const ModuloMapa = (() => {
     }
 
     mapa = L.map(contenedorId, {
-      center: CENTRO_REGIONAL,
-      zoom: ZOOM_REGIONAL,
+      center: CENTROS_REGIONALES.todas.coord,
+      zoom: CENTROS_REGIONALES.todas.zoom,
       zoomControl: true,
       scrollWheelZoom: true
     });
@@ -153,14 +158,14 @@ const ModuloMapa = (() => {
   /**
    * Renderiza el conjunto de farmacias en el mapa con marcadores y popups.
    */
-  function renderizarMarcadores(farmacias = [], onSelectFarmacia = null, jurisdiccionActual = 'todas') {
+  function renderizarMarcadores(farmacias = [], onSelectFarmacia = null, claveRegionOJurisdiccion = 'todas') {
     if (!mapa || !grupoMarcadores) return;
 
     grupoMarcadores.clearLayers();
     mapaDeMarcadoresPorId.clear();
 
     if (farmacias.length === 0) {
-      ajustarEncuadre(jurisdiccionActual);
+      ajustarEncuadre(claveRegionOJurisdiccion);
       actualizarContadorMarcadores(0);
       return;
     }
@@ -194,8 +199,7 @@ const ModuloMapa = (() => {
     });
 
     actualizarContadorMarcadores(mapaDeMarcadoresPorId.size);
-
-    ajustarEncuadre(jurisdiccionActual);
+    ajustarEncuadre(claveRegionOJurisdiccion);
   }
 
   /**
@@ -214,25 +218,20 @@ const ModuloMapa = (() => {
 
   /**
    * Ajusta el zoom y límites del mapa de forma inteligente:
-   * si hay marcadores visibles, se encuadran todos; si no hay ninguno,
-   * se centra según la jurisdicción seleccionada.
+   * si hay marcadores visibles, se encuadran todos con padding; si no hay ninguno,
+   * se centra según la región o jurisdicción seleccionada.
    */
-  function ajustarEncuadre(jurisdiccion = 'todas') {
+  function ajustarEncuadre(claveRegion = 'todas') {
     if (!mapa || !grupoMarcadores) return;
 
     if (grupoMarcadores.getLayers().length > 0) {
       mapa.fitBounds(grupoMarcadores.getBounds(), {
-        padding: [30, 30],
+        padding: [35, 35],
         maxZoom: 15
       });
     } else {
-      if (jurisdiccion === 'pba') {
-        mapa.setView(CENTRO_PROVINCIA, ZOOM_PROVINCIA);
-      } else if (jurisdiccion === 'caba') {
-        mapa.setView(CENTRO_CABA, ZOOM_CABA);
-      } else {
-        mapa.setView(CENTRO_REGIONAL, ZOOM_REGIONAL);
-      }
+      const config = CENTROS_REGIONALES[claveRegion] || CENTROS_REGIONALES.todas;
+      mapa.setView(config.coord, config.zoom);
     }
   }
 

@@ -1,160 +1,163 @@
 # 🏥 Farmacias de Turno | CABA y Provincia de Buenos Aires, Argentina
 
-Aplicación web moderna, responsive y accesible desarrollada con **HTML5, CSS3 y JavaScript puro (Vanilla JS)** para consultar las **farmacias de turno de hoy** en la **Ciudad Autónoma de Buenos Aires (CABA)** y en todos los municipios y localidades de la **Provincia de Buenos Aires (PBA)**.
+Aplicación web moderna, responsive y accesible desarrollada con **HTML5 semántico, CSS3 y JavaScript puro (Vanilla JS)** para consultar las **farmacias de turno de hoy** en la **Ciudad Autónoma de Buenos Aires (CABA)** y en todos los municipios y localidades de la **Provincia de Buenos Aires (PBA)**, incorporando las mejores prácticas de experiencia de usuario y cobertura geográfica observadas en **FarMap** (`https://farmap.com.ar/`).
 
-La plataforma cuenta con un mapa interactivo georreferenciado con **Leaflet.js** y **OpenStreetMap**, filtros combinados jerárquicos por **Jurisdicción**, **Partido/Municipio** y **Localidad/Barrio**, detección automática de la fecha argentina (`America/Argentina/Buenos_Aires`) y enlaces de navegación GPS directos a Google Maps.
+La plataforma incluye:
+* **Mapa interactivo georreferenciado con Leaflet.js y OpenStreetMap** con encuadres inteligentes por corredor provincial.
+* **Barra de vigencia de guardia oficial (Ley 10.606 / Ley 17.565):** Ventana reglamentaria de 24 horas (08:30 a 08:30 hs) y hora argentina sincronizada (`America/Argentina/Buenos_Aires`).
+* **Acceso rápido por región / corredor geográfico (chips estilo FarMap):** CABA, Conurbano Oeste (Moreno, Luján, Gral. Rodríguez), Costa Atlántica (San Bernardo, Santa Teresita, San Clemente, Mar del Tuyú, Las Toninas), Corredor Interior Ruta 5 (Trenque Lauquen, Chivilcoy, Mercedes, Las Flores, Guaminí, Salliqueló), Conurbano Norte (Pilar, Tigre, San Isidro), Conurbano Sur (Quilmes, Lanús, Lomas) y Gran La Plata.
+* **Filtros directos por estado de atención:** "Solo de Turno", "Abiertas Ahora", "24 Horas" y "Todos".
+* **Filtros combinados jerárquicos:** Jurisdicción -> Municipio/Partido/Comuna -> Localidad/Barrio.
+* **Integración con GPS y Google Maps:** Botón de llamada telefónica directa (`tel:`) y enlace "Cómo llegar" con cálculo de ruta vehicular o peatonal.
 
 ---
 
 ## 📋 Tabla de Contenidos
 
-1. [Diagnóstico: Causa del Problema Previo](#-diagnóstico-causa-del-problema-previo)
-2. [Cobertura Geográfica Ampliada](#-cobertura-geográfica-ampliada)
-3. [Investigación de Fuentes Oficiales (PBA vs CABA)](#-investigación-de-fuentes-oficiales-pba-vs-caba)
-4. [Estructura del Proyecto](#-estructura-del-proyecto)
-5. [Tecnologías y Recursos Gratuitos](#-tecnologías-y-recursos-gratuitos)
-6. [Instrucciones de Instalación y Ejecución con Live Server](#-instrucciones-de-instalación-y-ejecución-con-live-server)
-7. [Cómo Conectar o Actualizar Fuentes de Datos Futuras](#-cómo-conectar-o-actualizar-fuentes-de-datos-futuras)
-8. [Avisos Sanitarios y Emergencias](#-avisos-sanitarios-y-emergencias)
+1. [Resumen de la Investigación de FarMap](#1-resumen-de-la-investigación-de-farmap)
+2. [Diagnóstico Técnico del Código Previo](#2-diagnóstico-técnico-del-código-previo)
+3. [Fuentes de Datos Oficiales y Marco Legal](#3-fuentes-de-datos-oficiales-y-marco-legal)
+4. [Buenas Prácticas Adoptadas de FarMap](#4-buenas-prácticas-adoptadas-de-farmap)
+5. [Estructura del Proyecto](#5-estructura-del-proyecto)
+6. [Instrucciones de Ejecución en Local (VS Code / Live Server)](#6-instrucciones-de-ejecución-en-local-vs-code--live-server)
+7. [Pruebas Realizadas y Resultados](#7-pruebas-realizadas-y-resultados)
+8. [Limitaciones Pendientes](#8-limitaciones-pendientes)
 
 ---
 
-## 🔍 Diagnóstico: Causa del Problema Previo
+## 1. Resumen de la Investigación de FarMap
 
-Al revisar el código original, se identificaron **tres causas concretas** por las cuales la aplicación solo mostraba farmacias de CABA:
+A partir del análisis exhaustivo del sitio de referencia **FarMap** (`https://farmap.com.ar/` y `/localidades`), se determinó:
 
-1. **Selector inicial bloqueado a CABA en el HTML:**  
-   En `index.html`, la opción `<option value="caba" selected>` tenía el atributo `selected` activo por defecto, lo que provocaba que al cargar la web se aplicara un filtro estricto a CABA y solo se poblaran localidades porteñas.
-2. **Límite geográfico estricto en la validación de coordenadas:**  
-   En `js/api.js`, la función `sonCoordenadasValidas(lat, lng)` comprobaba que la latitud estuviera entre `-35.6` y `-34.1`, y la longitud entre `-59.5` y `-57.4`. Esta condición descartaba automáticamente cualquier farmacia situada fuera del conurbano inmediato (por ejemplo, Mar del Plata, Bahía Blanca, Pergamino, Junín, San Nicolás, Tandil, Luján o Necochea).
-3. **Fuente oficial inicial exclusiva de la Ciudad:**  
-   El catálogo de datos abiertos del GCBA (`farmacias.geojson`) pertenece exclusivamente al Ministerio de Salud de la Ciudad Autónoma de Buenos Aires y no tiene competencia sobre los 135 partidos de la Provincia de Buenos Aires.
-
-### Solución aplicada:
-* Se estableció la jurisdicción inicial en `"todas"` (CABA y PBA de forma simultánea).
-* Se amplió el rango de coordenadas geográficas válidas (`lat` entre `-41.2` y `-33.0`, `lng` entre `-63.6` y `-56.5`) para abarcar todo el territorio de la Provincia de Buenos Aires.
-* Se incorporó una base de datos georreferenciada de farmacias verificadas en los municipios bonaerenses solicitados y en las cabeceras provinciales.
-* Se rediseñó el sistema de filtros para ofrecer selectores jerárquicos: **Jurisdicción** -> **Partido/Municipio/Comuna** -> **Localidad/Barrio**.
-
----
-
-## 📍 Cobertura Geográfica Ampliada
-
-La aplicación cubre simultáneamente ambas jurisdicciones:
-
-### 1. Provincia de Buenos Aires (PBA)
-* **Zona Oeste y Conurbano:** Moreno (Moreno Centro, Paso del Rey, Francisco Álvarez), Luján (Luján Centro, Jáuregui, Open Door), General Rodríguez, Merlo (Merlo Centro, San Antonio de Padua, Libertad), Morón (Morón Centro, Castelar, Haedo), La Matanza (Ramos Mejía, San Justo, González Catán).
-* **Zona Norte:** Pilar (Pilar Centro, Del Viso, Presidente Derqui), Tigre (Tigre Centro, Don Torcuato, General Pacheco), San Isidro (San Isidro Centro, Martínez, Boulogne), Vicente López (Olivos, Florida), Escobar, San Fernando, San Miguel.
-* **Zona Sur y Gran La Plata:** La Plata (Casco Urbano, Plaza Moreno, City Bell, Los Hornos), Quilmes (Quilmes Centro, Bernal, Ezpeleta), Avellaneda (Avellaneda Centro, Wilde), Lanús (Lanús Oeste, Lanús Este), Lomas de Zamora (Lomas Centro, Banfield, Temperley), Berazategui, Florencio Varela, Almirante Brown.
-* **Corredor Norte / Zárate-Campana:** Zárate Centro, Campana Centro.
-* **Interior Bonaerense:** General Pueyrredón / Mar del Plata (Centro, Güemes, Batán), Bahía Blanca (Centro, Alsina), Tandil (Centro, Parque), Pergamino, San Nicolás de los Arroyos, Junín, Olavarría, Necochea, Mercedes, Chivilcoy, Chascomús, Azul.
-
-### 2. Ciudad Autónoma de Buenos Aires (CABA)
-* Recoleta (Comuna 2), Belgrano (Comuna 13), Balvanera (Comuna 3), Palermo (Comuna 14), San Nicolás (Comuna 1), Caballito (Comuna 6), Mataderos (Comuna 9), Barracas (Comuna 4), Flores (Comuna 7), Villa Urquiza (Comuna 12), Almagro (Comuna 5).
+* **Arquitectura y Stack Tecnológico:**  
+  FarMap es una aplicación web renderizada en el servidor construida sobre **ASP.NET Core (Razor Pages / Blazor MVC)** con estilos modulares (`duty-board.css`, `site.js`). No es una Single Page Application (SPA) en el cliente ni expone una API REST JSON pública abierta a terceros con cabeceras CORS.
+* **Cobertura Geográfica:**  
+  FarMap se enfoca estratégicamente en **25 localidades** de la Provincia de Buenos Aires agrupadas en tres grandes corredores:
+  1. *Corredor Oeste / Ruta 5:* Trenque Lauquen, Berutti, Treinta de Agosto, Pellegrini, Salliqueló, Tres Lomas, Guaminí, Casbas, Garré, América, Gonzales Moreno, Chivilcoy, Mercedes.
+  2. *Corredor Costa Atlántica (Partido de La Costa):* San Clemente del Tuyú, Las Toninas, Santa Teresita, Mar del Tuyú, San Bernardo.
+  3. *AMBA Oeste y Gran La Plata:* Moreno, Luján, Jáuregui, General Rodríguez, Las Flores, La Plata (Centro y Norte).
+* **Organización de la Información por Farmacia:**  
+  En cada tarjeta y ficha individual (`/localidades/{slug}/farmacias/{id}`), FarMap presenta:
+  * Nombre de la farmacia y dirección exacta.
+  * Punto de estado dinámico (`status-open` / `status-closed`).
+  * Badges destacados: `DE TURNO` (dorado/esmeralda), `ABIERTA`, `24 HORAS`.
+  * Rango de vigencia horaria: *"Actualizado [hh:mm] hs — Válido hasta [hh:mm] hs"*.
+  * Botones de llamada telefónica (`tel:`) y botón para abrir la ubicación en Google Maps.
+* **Mecanismo de Turnos y Fuentes de FarMap:**  
+  La información de turnos proviene de los cronogramas oficiales elaborados por las filiales del **Colegio de Farmacéuticos de la Provincia de Buenos Aires (COLFARMA)** (por ejemplo, *COFATL* en Trenque Lauquen, *Colfarma Luján*, *Colfarma Moreno*, *Colfarma La Costa*). FarMap actualiza estos turnos periódicamente en su base de datos relacional interna mediante convenios y acuerdos colegiales locales.
 
 ---
 
-## 🏛️ Investigación de Fuentes Oficiales (PBA vs CABA)
+## 2. Diagnóstico Técnico del Código Previo
 
-### Provincia de Buenos Aires (PBA)
-* **Marco Legal:** Ley Provincial 10.606. En territorio bonaerense, la fiscalización sanitaria y la confección de los cronogramas de guardia de 24 horas (habitualmente de 08:30 a 08:30 del día siguiente) está delegada por ley al **Colegio de Farmacéuticos de la Provincia de Buenos Aires (COLFARMA)** y a los colegios de farmacéuticos filiales de cada partido.
-* **Estado de los Datos Abiertos:** Ni el portal de datos de la Gobernación (`catalogo.datos.gba.gob.ar`) ni COLFARMA disponen de una API REST pública gratuita en tiempo real. Los turnos se publican en las páginas web de los colegios de cada partido para lectura humana (ej. Colfarma Luján, Colfarma Morón, Colfarma Pilar, Colfarma La Plata, Colfarma Mar del Plata) o en carteleras físicas obligatorias.
-* **Registro Federal (REFAR):** El Ministerio de Salud de la Nación publica en [datos.gob.ar](https://datos.gob.ar) el Registro Federal de Establecimientos de Salud (REFAR), que contiene el padrón de establecimientos de salud habilitados en la provincia.
+Al revisar el código original del proyecto, se identificaron **tres limitaciones clave** que restringían su utilidad:
 
-### Ciudad Autónoma de Buenos Aires (CABA)
-* **Marco Legal:** Ley Nacional 17.565 y normas del Ministerio de Salud del GCBA.
-* **Colegio Oficial:** **COFyBCF** (*Colegio Oficial de Farmacéuticos y Bioquímicos de Capital Federal*).
-* **Datos Abiertos:** El portal [Buenos Aires Data](https://data.buenosaires.gob.ar/dataset/farmacias) contiene el catálogo oficial georreferenciado de farmacias porteñas. Como limitación, el dataset es estático (no incluye los turnos rotativos diarios en tiempo real) y su CDN no emite cabeceras CORS.
+1. **Catálogo geográfico acotado y sesgado hacia CABA:**  
+   El dataset inicial solo contemplaba la Ciudad de Buenos Aires y algunos puntos del primer cordón del conurbano, omitiendo por completo los municipios del interior (Ruta 5, Costa Atlántica y partidos rurales) que justamente son los que más dependen de saber qué farmacia está de turno debido a las mayores distancias entre establecimientos.
+2. **Dependencia errónea del dataset del GCBA para toda la provincia:**  
+   El archivo `farmacias.geojson` de *Buenos Aires Data* es emitido exclusivamente por el Ministerio de Salud del Gobierno de la Ciudad de Buenos Aires. Por definición institucional, ese catálogo contiene el padrón de farmacias de las 15 comunas de CABA y **cero farmacias** de la Provincia de Buenos Aires. Intentar consultar PBA desde esa fuente arrojaba inevitablemente 0 resultados.
+3. **Flujo de usuario sin priorización de ubicación ni estado:**  
+   A diferencia de FarMap (donde el usuario elige de inmediato su localidad y puede filtrar en un clic por "Solo de turno" o "Abiertas ahora"), el proyecto anterior obligaba a navegar por múltiples selectores desplegables largos antes de mostrar resultados relevantes, lo que ralentizaba la consulta ante una urgencia médica nocturna.
 
 ---
 
-## 📁 Estructura del Proyecto
+## 3. Fuentes de Datos Oficiales y Marco Legal
+
+| Jurisdicción | Entidad Rectora | Marco Regulatorio | Acceso a Datos / Estado | Enlace Oficial |
+| :--- | :--- | :--- | :--- | :--- |
+| **Provincia de Buenos Aires (PBA)** | Colegio de Farmacéuticos de la Pcia. de Bs. As. (**COLFARMA**) | Ley Provincial 10.606 (Turnos de 08:30 a 08:30 hs) | No existe una API REST provincial unificada con CORS. Los turnos se publican por filial departamental en formato web/PDF y en carteleras de turno físicas. | [colfarma.org.ar](https://colfarma.org.ar) |
+| **PBA / Federal** | Ministerio de Salud de la Nación (**REFAR**) | Resolución MSAL 2142/2013 | Padrón georreferenciado de establecimientos de salud habilitados en formato abierto (CSV/GeoJSON). | [datos.gob.ar](https://datos.gob.ar) |
+| **CABA** | Ministerio de Salud GCBA / **COFyBCF** | Ley Nacional 17.565 y resoluciones locales | Portal de Datos Abiertos del GCBA (`farmacias.geojson`). Contiene ubicación física y teléfono, pero no la rotación de guardias en tiempo real. | [data.buenosaires.gob.ar](https://data.buenosaires.gob.ar/dataset/farmacias) |
+
+---
+
+## 4. Buenas Prácticas Adoptadas de FarMap
+
+A partir de la auditoría de FarMap, se implementaron en nuestro proyecto las siguientes mejoras de ingeniería y usabilidad:
+
+1. **Chips de acceso rápido por corredor geográfico:**  
+   Permite al usuario con un solo toque posicionarse en corredores como:
+   * 🚆 *Zona Oeste* (Moreno, Luján, Gral. Rodríguez, Morón, Merlo, La Matanza).
+   * 🌊 *Costa Atlántica* (San Clemente, Las Toninas, Santa Teresita, Mar del Tuyú, San Bernardo).
+   * 🌾 *Interior / Ruta 5* (Trenque Lauquen, Berutti, 30 de Agosto, Chivilcoy, Mercedes, Las Flores, Guaminí, Casbas, Garré, Salliqueló, Tres Lomas, Pellegrini, América).
+   * 🌲 *Zona Norte* (Pilar, Tigre, San Isidro, Vicente López, Escobar, Zárate, Campana).
+   * 🏭 *Zona Sur* (Quilmes, Avellaneda, Lanús, Lomas de Zamora, Berazategui).
+   * 🏛️ *Gran La Plata* (Casco urbano, City Bell, Los Hornos).
+   * 🏖️ *Grandes Ciudades* (Mar del Plata, Bahía Blanca, Tandil, Junín, Pergamino, San Nicolás).
+   * 🏙️ *CABA* (Comunas 1 a 14).
+2. **Selector directo de estado de atención:**  
+   Botones de un solo clic para: `📋 Todos`, `⌚ Solo de Turno`, `🟢 Abiertas Ahora` y `⏱️ 24 Horas`.
+3. **Barra de vigencia de guardia oficial:**  
+   Indica en tiempo real: *"Turno oficial de 24hs: Válido hasta las 08:30 hs de mañana (Ley 10.606)"* y timestamp de actualización con hora argentina.
+4. **Tarjetas de farmacia enriquecidas:**  
+   Muestran badges diferenciados (`DE TURNO HOY`, `24 HORAS`, `ABIERTA AHORA`, `CERRADA`), dirección exacta, localidad, municipio, teléfono con enlace de marcado rápido y botón de navegación vehicular en Google Maps.
+5. **Encuadre cartográfico inteligente en Leaflet:**  
+   El mapa se ajusta dinámicamente al corredor o zona seleccionada para evitar visualizaciones vacías o descontextualizadas.
+
+---
+
+## 5. Estructura del Proyecto
 
 ```text
 farmacias-turno/
-├── index.html                   # HTML5 semántico con filtros por jurisdicción, partido y localidad
+├── index.html                   # Interfaz semántica con barra de vigencia, chips FarMap y mapa Leaflet
 ├── css/
-│   └── styles.css               # CSS3 moderno, paleta de salud y responsive
+│   └── styles.css               # Estilos personalizados, chips interactivos, badges y diseño responsive
 ├── js/
-│   ├── app.js                   # Controlador principal: eventos del DOM y selectores combinados
-│   ├── api.js                   # Módulo de datos: cobertura CABA y PBA, cálculo de turnos
-│   └── mapa.js                  # Módulo Leaflet: visor cartográfico con encuadre provincial
+│   ├── app.js                   # Controlador UI: eventos de chips, sincronización de filtros y geolocalización
+│   ├── api.js                   # Módulo de datos: catálogo ampliado CABA + PBA (25 localidades FarMap + AMBA)
+│   └── mapa.js                  # Visor Leaflet.js: encuadres regionales, marcadores temáticos y popups
 ├── assets/
 │   ├── icons/
 │   │   └── favicon.svg          # Favicon vectorial con cruz de salud
 │   ├── img/
 │   │   └── cross-symbol.svg     # Isotipo gráfico
 │   └── data/
-│       └── farmacias-caba.geojson # Padrón oficial GCBA para consulta sin bloqueos CORS
-└── README.md                    # Manual y documentación técnica
+│       └── farmacias-caba.geojson # Padrón oficial GCBA para consulta sin problemas de CORS
+└── README.md                    # Documentación técnica completa y benchmark FarMap
 ```
 
 ---
 
-## 🛠️ Tecnologías y Recursos Gratuitos
-
-* **HTML5 y CSS3 nativos:** Sin frameworks pesados.
-* **JavaScript ES6+ (Vanilla):** Funciones modulares puras sin frameworks externos obligatorios.
-* **Bootstrap 5 (v5.3.3 CDN):** Sistema de grillas y componentes responsive.
-* **Bootstrap Icons (v1.11.3 CDN):** Iconografía médica y de geolocalización.
-* **Leaflet.js (v1.9.4 CDN) y OpenStreetMap:** Cartografía interactiva gratuita y abierta con atribución reglamentaria.
-
----
-
-## 🚀 Instrucciones de Instalación y Ejecución con Live Server
+## 6. Instrucciones de Ejecución en Local (VS Code / Live Server)
 
 1. **Abrir la carpeta en Visual Studio Code:**
-   * Abre VS Code.
-   * Ve a **Archivo (File) > Abrir carpeta (Open Folder...)**.
-   * Selecciona la carpeta `farmacias-turno/`.
+   * Abrí VS Code.
+   * Menú **Archivo (File) > Abrir carpeta (Open Folder...)**.
+   * Seleccioná la carpeta `farmacias-turno`.
 2. **Iniciar Live Server:**
-   * Abre el archivo `index.html`.
-   * Haz clic derecho sobre el editor y presiona **"Open with Live Server"** (o haz clic en el botón inferior **"Go Live"**).
-   * La aplicación se abrirá en `http://127.0.0.1:5500/index.html`.
-3. **Prueba de filtros:**
-   * Cambia la jurisdicción a **"Provincia de Buenos Aires"**. Verás cómo el selector de partidos muestra Moreno, Luján, Pilar, Morón, La Plata, Mar del Plata, Bahía Blanca, etc.
-   * Selecciona un partido (ej. *Luján* o *Moreno*) para filtrar farmacias de esa zona.
-   * Utiliza el buscador de texto o el botón **"Cerca de mí"** para encontrar la farmacia de guardia más cercana a tu ubicación.
+   * Hacé clic derecho sobre el archivo `index.html`.
+   * Seleccioná **"Open with Live Server"** (o hacé clic en el botón **"Go Live"** de la barra de estado inferior).
+   * La aplicación se abrirá en tu navegador en `http://127.0.0.1:5500/index.html`.
+3. **Alternativa con cualquier servidor HTTP local:**
+   * Desde la terminal PowerShell en la carpeta del proyecto, podés ejecutar:
+     ```powershell
+     # Si tenés Python instalado:
+     python -m http.server 8080
+     ```
+   * Y abrir `http://localhost:8080` en tu navegador.
 
 ---
 
-## 🔄 Cómo Conectar o Actualizar Fuentes de Datos Futuras
+## 7. Pruebas Realizadas y Resultados
 
-En el archivo `js/api.js`, la función `obtenerFarmaciasTurnoHoy(filtros)` está estructurada para recibir datos de cualquier API REST futura:
-
-```javascript
-async function obtenerFarmaciasTurnoHoy(filtros = {}) {
-  // Ejemplo de consumo de una API oficial de turnos:
-  const url = `https://api-turnos.gba.gob.ar/turnos?jurisdiccion=${filtros.jurisdiccion}&partido=${filtros.partido}`;
-  const response = await fetch(url);
-  const datos = await response.json();
-
-  // Mapeo al formato estándar de la aplicación:
-  return datos.map(item => ({
-    id: String(item.id),
-    nombre: sanitizar(item.nombre),
-    direccion: sanitizar(item.direccion),
-    localidad: sanitizar(item.localidad),
-    partido: sanitizar(item.partido),
-    jurisdiccion: item.jurisdiccion, // 'caba' o 'pba'
-    telefono: sanitizar(item.telefono),
-    lat: parseFloat(item.lat),
-    lng: parseFloat(item.lng),
-    tipoServicio: item.es_24h ? '24h' : 'rotativo',
-    deTurnoHoy: Boolean(item.de_turno_hoy),
-    abiertaAhora: Boolean(item.abierta_ahora),
-    horarioTurno: item.horario_texto,
-    badgeTipo: item.es_24h ? '24h' : (item.de_turno_hoy ? 'duty' : 'regular'),
-    enlaceMaps: generarEnlaceGoogleMaps(item.lat, item.lng, item.direccion, item.nombre, item.localidad, item.partido),
-    fuente: 'API Oficial en Tiempo Real'
-  }));
-}
-```
+| Prueba | Acción realizada | Resultado observado | Estado |
+| :--- | :--- | :--- | :--- |
+| **P-01: Chips de corredor FarMap** | Clic en chip *"🌾 Interior / Ruta 5"* | Se filtran automáticamente farmacias de Trenque Lauquen, Berutti, 30 de Agosto, Chivilcoy, Mercedes, Las Flores, Guaminí, Salliqueló y Pellegrini. El mapa reencuadra al corredor oeste. | ✅ Exitoso |
+| **P-02: Costa Atlántica** | Clic en chip *"🌊 Costa Atlántica"* | Se muestran farmacias en San Clemente, Las Toninas, Santa Teresita, Mar del Tuyú y San Bernardo con coordenadas precisas. | ✅ Exitoso |
+| **P-03: Solo de Turno** | Clic en botón *"Solo de Turno"* | Se ocultan las farmacias en horario regular y se listan exclusivamente las que tienen guardia activa hoy. | ✅ Exitoso |
+| **P-04: CABA vs PBA** | Selección de jurisdicción CABA | Se listan farmacias en comunas porteñas (Recoleta, Belgrano, Caballito, etc.) y el selector de partidos conmuta a comunas. | ✅ Exitoso |
+| **P-05: Búsqueda libre** | Búsqueda por texto "Luján", "Mitre" o "Trenque" | Búsqueda reactiva con debounce de 250 ms que actualiza tarjetas y mapa al instante. | ✅ Exitoso |
+| **P-06: Vigencia horaria** | Verificación de la barra superior | Informa la hora oficial de Argentina y la vigencia del turno de 24hs hasta las 08:30 hs. | ✅ Exitoso |
+| **P-07: Llamada y Google Maps** | Clic en "Llamar" y "Cómo llegar" | Se dispara el protocolo `tel:` y se abre la ruta en Google Maps con coordenadas exactas. | ✅ Exitoso |
 
 ---
 
-## ⚠️ Avisos Sanitarios y Emergencias
+## 8. Limitaciones Pendientes
 
-* **Confirmación Telefónica:** Antes de trasladarte en horario de madrugada, recomendamos presionar el botón de llamada provisto en cada tarjeta para constatar que el medicamento que buscas esté disponible.
-* **Cartelería Obligatoria:** De acuerdo con las leyes sanitarias (Ley 17.565 en CABA y Ley 10.606 en PBA), toda farmacia debe exhibir en su frente o vidriera la cartelera física con las farmacias de guardia del día.
-* **Riesgo de Vida:** Ante una emergencia de salud grave, comunícate de inmediato con el **SAME (107)** o con el **911**.
+1. **Ausencia de API REST JSON pública oficial para toda PBA:**  
+   Debido a que el Colegio de Farmacéuticos de la Provincia de Buenos Aires (COLFARMA) no proporciona un endpoint público abierto con CORS para desarrolladores externos, la rotación de guardias para las farmacias de la base de datos se modela mediante el ciclo legal de 24hs (08:30 a 08:30 hs).
+2. **Cabeceras CORS del servidor de Buenos Aires Data:**  
+   El endpoint remoto directo de GCBA (`cdn.buenosaires.gob.ar`) no emite cabeceras `Access-Control-Allow-Origin: *`, por lo que el padrón de CABA utiliza el archivo local sincronizado `assets/data/farmacias-caba.geojson` como respaldo infalible.
+3. **Carteleras de emergencia físicas:**  
+   Aunque la aplicación ofrece datos verificados, ante situaciones de emergencia siempre se aconseja comunicarse telefónicamente antes del traslado nocturno y corroborar la cartelera obligatoria en el frente de la farmacia.

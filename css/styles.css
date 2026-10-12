@@ -1,6 +1,7 @@
 /* ==========================================================================
    FARMACIAS DE TURNO - BUENOS AIRES, ARGENTINA
    Hoja de estilos personalizada (CSS3 Responsive & Accesible)
+   Inspirada en las mejores prácticas de experiencia de usuario de FarMap
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
@@ -20,6 +21,7 @@
   
   --color-duty-gold: #b45309;
   --color-duty-bg: #fef3c7;
+  --color-duty-border: #fde68a;
   
   /* Textos y neutros */
   --color-text-main: #1e293b;
@@ -29,6 +31,7 @@
   --color-border: #e2e8f0;
   
   /* Sombras */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
   --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
@@ -70,6 +73,11 @@ a {
 a:hover {
   color: var(--color-primary-health-hover);
   text-decoration: underline;
+}
+
+.letter-spacing-1 {
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
 }
 
 /* --------------------------------------------------------------------------
@@ -115,14 +123,15 @@ a:hover {
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
 }
 
-/* Banner de estado de datos */
-.source-banner {
+/* Barra de vigencia horaria de guardia (FarMap) */
+.validity-banner {
   background-color: #f1f5f9;
-  font-size: 0.825rem;
+  font-size: 0.85rem;
+  border-bottom: 1px solid var(--color-border);
 }
 
 /* --------------------------------------------------------------------------
-   4. PANEL DE FILTROS Y BÚSQUEDA
+   4. PANEL DE FILTROS, CHIPS Y BÚSQUEDA
    -------------------------------------------------------------------------- */
 .filter-panel {
   background-color: var(--color-bg-card);
@@ -161,6 +170,77 @@ a:hover {
 
 #btn-limpiar-busqueda:hover {
   color: #ef4444;
+}
+
+/* Chips de acceso rápido por región (Inspirado en FarMap) */
+.filter-chip {
+  background-color: #f8fafc;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.filter-chip:hover {
+  background-color: #e2e8f0;
+  color: #1e293b;
+  border-color: #94a3b8;
+}
+
+.filter-chip.active {
+  background-color: var(--color-primary-health);
+  color: #ffffff;
+  border-color: var(--color-primary-health);
+  box-shadow: 0 2px 6px rgba(0, 143, 93, 0.25);
+  font-weight: 600;
+}
+
+/* Chips de estado de guardia estilo FarMap */
+.duty-chip {
+  background-color: #ffffff;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  border-radius: 9999px;
+  padding: 0.3rem 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  transition: all var(--transition-fast);
+  cursor: pointer;
+}
+
+.duty-chip:hover {
+  background-color: #f1f5f9;
+  color: #1e293b;
+}
+
+.duty-chip.active {
+  background-color: #0f172a;
+  color: #ffffff;
+  border-color: #0f172a;
+  font-weight: 600;
+  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.2);
+}
+
+.duty-chip[data-estado="turno"].active {
+  background-color: var(--color-primary-health);
+  border-color: var(--color-primary-health);
+  box-shadow: 0 2px 6px rgba(0, 143, 93, 0.25);
+}
+
+.duty-chip[data-estado="abiertas"].active {
+  background-color: #0284c7;
+  border-color: #0284c7;
+  box-shadow: 0 2px 6px rgba(2, 132, 199, 0.25);
+}
+
+.duty-chip[data-estado="24h"].active {
+  background-color: #4f46e5;
+  border-color: #4f46e5;
+  box-shadow: 0 2px 6px rgba(79, 70, 229, 0.25);
 }
 
 /* --------------------------------------------------------------------------
@@ -222,9 +302,9 @@ a:hover {
   background-color: var(--color-health-light);
   color: var(--color-primary-health);
   border: 1px solid #a7f3d0;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.75rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 9999px;
   display: inline-flex;
   align-items: center;
@@ -235,9 +315,9 @@ a:hover {
   background-color: var(--color-blue-subtle);
   color: var(--color-accent-blue);
   border: 1px solid #bfdbfe;
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.75rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 9999px;
   display: inline-flex;
   align-items: center;
@@ -250,7 +330,7 @@ a:hover {
   border: 1px solid #cbd5e1;
   font-weight: 500;
   font-size: 0.75rem;
-  padding: 0.35rem 0.6rem;
+  padding: 0.35rem 0.65rem;
   border-radius: 9999px;
 }
 
@@ -404,8 +484,8 @@ a:hover {
   margin: 0 !important;
   line-height: 1.4 !important;
   font-family: var(--font-family-base) !important;
-  min-width: 240px;
-  max-width: 290px;
+  min-width: 250px;
+  max-width: 300px;
 }
 
 .popup-custom {
@@ -446,7 +526,6 @@ a:hover {
    8. ADAPTACIONES RESPONSIVE (MÓVILES Y PANTALLAS PEQUEÑAS)
    -------------------------------------------------------------------------- */
 @media (max-width: 767.98px) {
-  /* En móviles, altura fija del mapa cuando se activa la pestaña mapa */
   .sticky-map-card {
     position: static;
     top: auto;
@@ -457,12 +536,10 @@ a:hover {
     min-height: 320px;
   }
 
-  /* Selector de vista en móviles */
   .view-hidden-mobile {
     display: none !important;
   }
 
-  /* Tarjetas más compactas */
   .pharmacy-card {
     padding: 1rem;
   }
@@ -474,6 +551,12 @@ a:hover {
 
   .site-header h1 {
     font-size: 1.15rem;
+  }
+  
+  .filter-chip,
+  .duty-chip {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.6rem;
   }
 }
 
@@ -487,7 +570,7 @@ a:hover {
 /* Modo impresión */
 @media print {
   .site-header,
-  .source-banner,
+  .validity-banner,
   .filter-panel,
   .sticky-map-card,
   .card-actions,
