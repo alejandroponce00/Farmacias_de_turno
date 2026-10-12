@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00a86b" />
+      <stop offset="100%" stop-color="#028090" />
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="14" fill="url(#grad)" />
+  <!-- White medical cross -->
+  <path d="M26 14 h12 v12 h12 v12 h-12 v12 h-12 v-12 h-12 v-12 h12 z" fill="#ffffff" />
+  <!-- Center pulse / heart circle -->
+  <circle cx="32" cy="32" r="4.5" fill="#00a86b" />
+</svg>

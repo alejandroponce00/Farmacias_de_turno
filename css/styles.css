@@ -1,0 +1,504 @@
+/* ==========================================================================
+   FARMACIAS DE TURNO - BUENOS AIRES, ARGENTINA
+   Hoja de estilos personalizada (CSS3 Responsive & Accesible)
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. VARIABLES DE TEMA Y PALETA DE SALUD
+   -------------------------------------------------------------------------- */
+:root {
+  /* Paleta médica y de salud */
+  --color-primary-health: #008f5d;
+  --color-primary-health-hover: #00734a;
+  --color-health-light: #e8f5e9;
+  --color-health-subtle: #f0fdf4;
+  --color-health-dark: #0f5132;
+  
+  --color-accent-blue: #0d6efd;
+  --color-accent-blue-hover: #0b5ed7;
+  --color-blue-subtle: #e7f1ff;
+  
+  --color-duty-gold: #b45309;
+  --color-duty-bg: #fef3c7;
+  
+  /* Textos y neutros */
+  --color-text-main: #1e293b;
+  --color-text-muted: #64748b;
+  --color-bg-body: #f8fafc;
+  --color-bg-card: #ffffff;
+  --color-border: #e2e8f0;
+  
+  /* Sombras */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06), 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.07);
+  --shadow-lg: 0 10px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-hover: 0 12px 28px -4px rgba(0, 143, 93, 0.15);
+
+  /* Transiciones */
+  --transition-fast: 0.18s ease-in-out;
+  --transition-normal: 0.25s ease-in-out;
+
+  /* Tipografía */
+  --font-family-base: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+/* --------------------------------------------------------------------------
+   2. REINICIO Y ESTILOS GENERALES
+   -------------------------------------------------------------------------- */
+body {
+  font-family: var(--font-family-base);
+  color: var(--color-text-main);
+  background-color: var(--color-bg-body);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Accesibilidad: enfoque visible para navegación por teclado */
+:focus-visible {
+  outline: 2px solid var(--color-primary-health);
+  outline-offset: 2px;
+}
+
+/* Enlaces sin subrayado por defecto */
+a {
+  color: var(--color-primary-health);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-health-hover);
+  text-decoration: underline;
+}
+
+/* --------------------------------------------------------------------------
+   3. ENCABEZADO Y BRANDING
+   -------------------------------------------------------------------------- */
+.site-header {
+  border-bottom: 1px solid var(--color-border);
+  z-index: 1020;
+}
+
+.brand-logo {
+  transition: transform var(--transition-fast);
+}
+
+.brand-logo:hover {
+  transform: rotate(5deg) scale(1.05);
+}
+
+.text-health-dark {
+  color: var(--color-health-dark) !important;
+}
+
+.bg-health-subtle {
+  background-color: var(--color-health-light) !important;
+}
+
+.border-health-subtle {
+  border-color: #c8e6c9 !important;
+}
+
+.badge-ar {
+  background-color: #e0f2fe;
+  color: #0369a1;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: 9999px;
+  border: 1px solid #bae6fd;
+}
+
+.date-badge {
+  font-size: 0.85rem;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+/* Banner de estado de datos */
+.source-banner {
+  background-color: #f1f5f9;
+  font-size: 0.825rem;
+}
+
+/* --------------------------------------------------------------------------
+   4. PANEL DE FILTROS Y BÚSQUEDA
+   -------------------------------------------------------------------------- */
+.filter-panel {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border) !important;
+  transition: box-shadow var(--transition-normal);
+}
+
+.filter-panel:hover {
+  box-shadow: var(--shadow-md) !important;
+}
+
+.form-label {
+  font-size: 0.8rem;
+  letter-spacing: 0.01em;
+}
+
+.input-group .form-control:focus,
+.form-select:focus,
+.form-check-input:focus {
+  border-color: var(--color-primary-health);
+  box-shadow: 0 0 0 0.25rem rgba(0, 143, 93, 0.15);
+}
+
+.form-check-input:checked {
+  background-color: var(--color-primary-health);
+  border-color: var(--color-primary-health);
+}
+
+/* Botón limpiar búsqueda dentro del input */
+#btn-limpiar-busqueda {
+  z-index: 5;
+  background-color: #ffffff;
+  border-left: 0;
+  color: #94a3b8;
+}
+
+#btn-limpiar-busqueda:hover {
+  color: #ef4444;
+}
+
+/* --------------------------------------------------------------------------
+   5. TARJETAS DE FARMACIAS
+   -------------------------------------------------------------------------- */
+.pharmacy-card {
+  background-color: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  padding: 1.25rem;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.pharmacy-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-hover);
+  border-color: #86efac;
+}
+
+.pharmacy-card.active-card {
+  border: 2px solid var(--color-primary-health) !important;
+  background-color: #fcfdfd;
+  box-shadow: 0 0 0 3px rgba(0, 143, 93, 0.15);
+}
+
+/* Borde indicador vertical según tipo de turno */
+.pharmacy-card::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 5px;
+  background-color: #cbd5e1;
+  transition: background-color var(--transition-fast);
+}
+
+.pharmacy-card.card-on-duty::before {
+  background-color: var(--color-primary-health);
+}
+
+.pharmacy-card.card-24h::before {
+  background-color: var(--color-accent-blue);
+}
+
+/* Nombre de la farmacia */
+.pharmacy-name {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  line-height: 1.3;
+}
+
+/* Badges de turno y estado */
+.badge-duty {
+  background-color: var(--color-health-light);
+  color: var(--color-primary-health);
+  border: 1px solid #a7f3d0;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-24h {
+  background-color: var(--color-blue-subtle);
+  color: var(--color-accent-blue);
+  border: 1px solid #bfdbfe;
+  font-weight: 600;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.badge-regular {
+  background-color: #f1f5f9;
+  color: #475569;
+  border: 1px solid #cbd5e1;
+  font-weight: 500;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.6rem;
+  border-radius: 9999px;
+}
+
+/* Indicador de punto pulsante para "Abierta ahora" */
+.pulse-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #22c55e;
+  box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  animation: pulse-animation 2s infinite;
+  vertical-align: middle;
+}
+
+@keyframes pulse-animation {
+  0% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 7px rgba(34, 197, 94, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+  }
+}
+
+/* Filas informativas de la tarjeta */
+.info-row {
+  font-size: 0.875rem;
+  color: #334155;
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.info-row i {
+  flex-shrink: 0;
+  font-size: 1rem;
+  margin-top: 0.15rem;
+}
+
+.info-row-address i {
+  color: #ef4444;
+}
+
+.info-row-phone i {
+  color: #0284c7;
+}
+
+.info-row-time i {
+  color: #eab308;
+}
+
+/* Botones de acción dentro de la tarjeta */
+.card-actions .btn {
+  font-size: 0.8rem;
+  font-weight: 500;
+  padding: 0.35rem 0.75rem;
+}
+
+/* --------------------------------------------------------------------------
+   6. MAPA INTERACTIVO Y LEAFLET
+   -------------------------------------------------------------------------- */
+.sticky-map-card {
+  position: -webkit-sticky;
+  position: sticky;
+  top: 80px;
+  border: 1px solid var(--color-border) !important;
+  z-index: 10;
+}
+
+.mapa-container {
+  width: 100%;
+  height: calc(100vh - 280px);
+  min-height: 480px;
+  background-color: #e5e7eb;
+  z-index: 1;
+}
+
+/* Leyenda del mapa */
+.legend-pin {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.legend-pin-open {
+  background-color: #008f5d;
+}
+
+.legend-pin-24h {
+  background-color: #0d6efd;
+}
+
+.legend-pin-regular {
+  background-color: #64748b;
+}
+
+/* Marcadores personalizados SVG de Leaflet */
+.custom-map-marker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: #ffffff;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+  border: 2.5px solid #ffffff;
+  transition: transform 0.18s ease;
+}
+
+.custom-map-marker:hover,
+.custom-map-marker.marker-selected {
+  transform: scale(1.22);
+  z-index: 1000 !important;
+}
+
+.custom-map-marker.marker-duty {
+  background: linear-gradient(135deg, #00a86b 0%, #0f5132 100%);
+}
+
+.custom-map-marker.marker-24h {
+  background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);
+}
+
+.custom-map-marker.marker-regular {
+  background: linear-gradient(135deg, #64748b 0%, #334155 100%);
+}
+
+.custom-map-marker.marker-user {
+  background: #3b82f6;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.4);
+}
+
+/* Popups personalizados de Leaflet */
+.leaflet-popup-content-wrapper {
+  border-radius: 0.85rem !important;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15) !important;
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  line-height: 1.4 !important;
+  font-family: var(--font-family-base) !important;
+  min-width: 240px;
+  max-width: 290px;
+}
+
+.popup-custom {
+  padding: 1rem;
+}
+
+.popup-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  margin-bottom: 0.35rem;
+}
+
+.popup-body {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+/* --------------------------------------------------------------------------
+   7. ESTADOS: CARGA, ERROR, VACÍO
+   -------------------------------------------------------------------------- */
+#estado-cargando,
+#estado-vacio {
+  border: 1px solid var(--color-border);
+}
+
+.empty-state-icon {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background-color: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* --------------------------------------------------------------------------
+   8. ADAPTACIONES RESPONSIVE (MÓVILES Y PANTALLAS PEQUEÑAS)
+   -------------------------------------------------------------------------- */
+@media (max-width: 767.98px) {
+  /* En móviles, altura fija del mapa cuando se activa la pestaña mapa */
+  .sticky-map-card {
+    position: static;
+    top: auto;
+  }
+
+  .mapa-container {
+    height: 380px;
+    min-height: 320px;
+  }
+
+  /* Selector de vista en móviles */
+  .view-hidden-mobile {
+    display: none !important;
+  }
+
+  /* Tarjetas más compactas */
+  .pharmacy-card {
+    padding: 1rem;
+  }
+
+  .brand-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .site-header h1 {
+    font-size: 1.15rem;
+  }
+}
+
+@media (min-width: 768px) and (max-width: 991.98px) {
+  .mapa-container {
+    height: calc(100vh - 320px);
+    min-height: 420px;
+  }
+}
+
+/* Modo impresión */
+@media print {
+  .site-header,
+  .source-banner,
+  .filter-panel,
+  .sticky-map-card,
+  .card-actions,
+  .site-footer {
+    display: none !important;
+  }
+
+  .pharmacy-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+    border: 1px solid #000000 !important;
+    margin-bottom: 1rem;
+  }
+}

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Consulta las farmacias de turno de hoy en Buenos Aires (CABA y toda la Provincia de Buenos Aires). Buscador interactivo con mapa en tiempo real, direcciones, teléfonos y horarios.">
+  <meta name="theme-color" content="#008f5d">
+  <title>Farmacias de Turno | CABA y Provincia de Buenos Aires</title>
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="assets/icons/favicon.svg">
+
+  <!-- Google Fonts: Inter -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Bootstrap 5 CSS CDN (gratuito) -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+
+  <!-- Bootstrap Icons CDN (gratuito) -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+
+  <!-- Leaflet.js CSS CDN (gratuito) -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+
+  <!-- Estilos personalizados -->
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-light d-flex flex-column min-vh-100">
+
+  <!-- ========================================================= -->
+  <!-- BARRA DE NAVEGACIÓN Y ENCABEZADO PRINCIPAL                -->
+  <!-- ========================================================= -->
+  <header class="site-header shadow-sm bg-white sticky-top">
+    <div class="container-fluid px-lg-4">
+      <div class="d-flex align-items-center justify-content-between py-2 flex-wrap gap-2">
+        
+        <!-- Logo y títulos -->
+        <div class="d-flex align-items-center gap-3">
+          <img src="assets/icons/favicon.svg" alt="Cruz verde de farmacia" width="46" height="46" class="brand-logo rounded-3 shadow-sm">
+          <div>
+            <h1 class="h4 mb-0 fw-bold text-health-dark d-flex align-items-center gap-2">
+              Farmacias de Turno
+              <span class="badge badge-ar d-none d-sm-inline-flex align-items-center gap-1">
+                <span class="flag-circle">🇦🇷</span> CABA y PBA
+              </span>
+            </h1>
+            <p class="text-muted small mb-0">Encontrá una farmacia de turno cerca tuyo</p>
+          </div>
+        </div>
+
+        <!-- Fecha actual argentina y acciones del encabezado -->
+        <div class="d-flex align-items-center gap-2 flex-wrap ms-auto">
+          <div class="date-badge px-3 py-1 rounded-pill bg-health-subtle text-health-dark border border-health-subtle d-flex align-items-center gap-2" id="fecha-badge-container">
+            <i class="bi bi-calendar3 text-success" aria-hidden="true"></i>
+            <span id="fecha-actual" class="fw-medium small" aria-live="polite">Cargando fecha...</span>
+            <span class="badge bg-success-subtle text-success border border-success-subtle small font-monospace d-none d-md-inline" id="hora-actual">--:--</span>
+          </div>
+
+          <!-- Botón de información de fuentes oficiales -->
+          <button type="button" class="btn btn-outline-secondary btn-sm rounded-pill d-flex align-items-center gap-1" data-bs-toggle="modal" data-bs-target="#modalFuentes" aria-label="Información sobre fuentes de datos oficiales">
+            <i class="bi bi-info-circle-fill text-primary" aria-hidden="true"></i>
+            <span class="d-none d-md-inline">Fuentes Oficiales</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================================= -->
+  <!-- BANNER TRANSPARENTE DE ESTADO DE DATOS                    -->
+  <!-- ========================================================= -->
+  <section class="source-banner py-2 border-bottom" aria-label="Aviso sobre fuentes y verificación de guardias">
+    <div class="container-fluid px-lg-4">
+      <div class="d-flex flex-column flex-md-row align-items-start align-items-md-center justify-content-between gap-2 small">
+        <div class="d-flex align-items-center gap-2">
+          <span class="badge bg-primary text-white" id="badge-modo-activo">Modo: Turnos del Día</span>
+          <span class="text-secondary" id="texto-explicativo-modo">
+            Cobertura ampliada: CABA y municipios de la Provincia de Buenos Aires. Farmacias verificadas con guardia de hoy calculada. <strong>Recomendamos llamar antes de salir</strong>.
+          </span>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          <div class="form-check form-switch m-0">
+            <input class="form-check-input" type="checkbox" role="switch" id="switch-fuente-oficial">
+            <label class="form-check-label text-muted small user-select-none" for="switch-fuente-oficial">
+              Ver padrón habilitado GCBA (Solo CABA)
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= -->
+  <!-- CONTENIDO PRINCIPAL                                       -->
+  <!-- ========================================================= -->
+  <main class="flex-grow-1 py-3" id="main-content">
+    <div class="container-fluid px-lg-4">
+
+      <!-- ======================================================= -->
+      <!-- BARRA DE BÚSQUEDA Y FILTROS                             -->
+      <!-- ======================================================= -->
+      <section class="card border-0 shadow-sm rounded-4 mb-3 filter-panel" aria-label="Filtros de búsqueda">
+        <div class="card-body p-3 p-md-4">
+          <form id="form-filtros" class="row g-2 g-md-3 align-items-end" onsubmit="event.preventDefault();">
+            
+            <!-- Campo de búsqueda de texto -->
+            <div class="col-12 col-md-6 col-lg-3">
+              <label for="input-busqueda" class="form-label fw-semibold small text-secondary mb-1">
+                <i class="bi bi-search me-1 text-primary"></i>Buscar farmacia, calle o zona
+              </label>
+              <div class="input-group">
+                <span class="input-group-text bg-white border-end-0 text-muted">
+                  <i class="bi bi-search" aria-hidden="true"></i>
+                </span>
+                <input 
+                  type="text" 
+                  id="input-busqueda" 
+                  class="form-control border-start-0 ps-0" 
+                  placeholder="Ej: Central, Mitre, Luján..." 
+                  autocomplete="off"
+                  aria-label="Buscar farmacia por nombre, calle, localidad o partido">
+                <button 
+                  type="button" 
+                  id="btn-limpiar-busqueda" 
+                  class="btn btn-outline-light border border-start-0 text-muted d-none" 
+                  aria-label="Borrar texto de búsqueda"
+                  title="Borrar texto">
+                  <i class="bi bi-x-circle-fill"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- Selector de Jurisdicción (Todas vs CABA vs Provincia de Bs. As.) -->
+            <div class="col-6 col-md-6 col-lg-3">
+              <label for="select-jurisdiccion" class="form-label fw-semibold small text-secondary mb-1">
+                <i class="bi bi-geo-alt me-1 text-success"></i>Jurisdicción
+              </label>
+              <select id="select-jurisdiccion" class="form-select" aria-label="Seleccionar jurisdicción">
+                <option value="todas" selected>Todas (CABA y PBA)</option>
+                <option value="pba">Provincia de Buenos Aires</option>
+                <option value="caba">CABA (Capital Federal)</option>
+              </select>
+            </div>
+
+            <!-- Selector de Partido / Municipio / Comuna -->
+            <div class="col-6 col-md-6 col-lg-3">
+              <label for="select-partido" class="form-label fw-semibold small text-secondary mb-1">
+                <i class="bi bi-building me-1 text-info"></i>Partido / Municipio / Comuna
+              </label>
+              <select id="select-partido" class="form-select" aria-label="Seleccionar partido o municipio">
+                <option value="todos">Todos los partidos / comunas</option>
+                <!-- Opciones dinámicas cargadas por app.js -->
+              </select>
+            </div>
+
+            <!-- Selector de Localidad / Barrio -->
+            <div class="col-12 col-md-6 col-lg-3">
+              <label for="select-localidad" class="form-label fw-semibold small text-secondary mb-1">
+                <i class="bi bi-pin-map me-1 text-warning"></i>Localidad / Barrio
+              </label>
+              <select id="select-localidad" class="form-select" aria-label="Seleccionar localidad o barrio">
+                <option value="todas">Todas las localidades</option>
+                <!-- Opciones dinámicas cargadas por app.js -->
+              </select>
+            </div>
+
+            <!-- Fila de Acciones y Switch de Atención -->
+            <div class="col-12 d-flex flex-wrap align-items-center justify-content-between gap-2 pt-2 border-top mt-2">
+              <div class="d-flex align-items-center gap-3 flex-wrap">
+                <!-- Filtro: Solo Abiertas Ahora -->
+                <div class="form-check form-switch m-0">
+                  <input class="form-check-input" type="checkbox" role="switch" id="check-solo-abiertas">
+                  <label class="form-check-label fw-semibold small text-secondary user-select-none" for="check-solo-abiertas">
+                    <span class="badge bg-success-subtle text-success border border-success-subtle me-1">
+                      <span class="pulse-dot"></span> Abierta
+                    </span>
+                    Solo abiertas ahora
+                  </label>
+                </div>
+
+                <div class="vr d-none d-sm-inline"></div>
+
+                <button type="button" id="btn-limpiar-filtros" class="btn btn-outline-secondary btn-sm rounded-pill d-inline-flex align-items-center gap-1">
+                  <i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i> Limpiar filtros
+                </button>
+                <button type="button" id="btn-actualizar" class="btn btn-outline-success btn-sm rounded-pill d-inline-flex align-items-center gap-1" title="Actualizar datos">
+                  <i class="bi bi-arrow-repeat" aria-hidden="true"></i> Actualizar
+                </button>
+              </div>
+
+              <!-- Geolocalización del usuario -->
+              <div class="d-flex align-items-center gap-2">
+                <button type="button" id="btn-mi-ubicacion" class="btn btn-light btn-sm text-primary border rounded-pill d-inline-flex align-items-center gap-1" title="Encontrar farmacias cerca de mi ubicación actual">
+                  <i class="bi bi-crosshair" aria-hidden="true"></i> Cerca de mí
+                </button>
+              </div>
+            </div>
+
+          </form>
+        </div>
+      </section>
+
+      <!-- ======================================================= -->
+      <!-- VISTA EN MÓVILES: SELECTOR DE PESTAÑAS (LISTA / MAPA)   -->
+      <!-- ======================================================= -->
+      <div class="d-md-none mb-3">
+        <div class="btn-group w-100 rounded-pill p-1 bg-white shadow-sm" role="tablist">
+          <button type="button" class="btn btn-sm rounded-pill active fw-medium w-50" id="tab-btn-lista" data-view="lista">
+            <i class="bi bi-card-list me-1"></i> Lista (<span id="contador-movil-lista">0</span>)
+          </button>
+          <button type="button" class="btn btn-sm rounded-pill fw-medium w-50" id="tab-btn-mapa" data-view="mapa">
+            <i class="bi bi-map me-1"></i> Mapa
+          </button>
+        </div>
+      </div>
+
+      <!-- ======================================================= -->
+      <!-- BARRA DE ESTADO / CONTADOR DE RESULTADOS                -->
+      <!-- ======================================================= -->
+      <div class="d-flex align-items-center justify-content-between mb-3 px-1 flex-wrap gap-2">
+        <p class="mb-0 text-muted small fw-medium" id="resumen-resultados" aria-live="polite">
+          Cargando farmacias...
+        </p>
+        <span class="badge bg-light text-secondary border small" id="badge-jurisdiccion-activa">
+          CABA y toda la Provincia de Buenos Aires
+        </span>
+      </div>
+
+      <!-- ======================================================= -->
+      <!-- CONTENEDOR SPLIT: LISTA A LA IZQUIERDA, MAPA A LA DERECHA -->
+      <!-- ======================================================= -->
+      <div class="row g-3 align-items-start">
+        
+        <!-- COLUMNA LISTA DE FARMACIAS -->
+        <div class="col-12 col-md-6 col-lg-5 order-2 order-md-1" id="columna-lista">
+          
+          <!-- ESTADO: CARGANDO (SPINNER) -->
+          <div id="estado-cargando" class="text-center py-5 bg-white rounded-4 shadow-sm" role="status">
+            <div class="spinner-border text-success mb-3" style="width: 3rem; height: 3rem;" role="status">
+              <span class="visually-hidden">Cargando farmacias...</span>
+            </div>
+            <h2 class="h6 text-secondary mb-1">Consultando farmacias de turno...</h2>
+            <p class="text-muted small mb-0">Verificando turnos y coordenadas en CABA y Provincia de Buenos Aires</p>
+          </div>
+
+          <!-- ESTADO: ERROR -->
+          <div id="estado-error" class="alert alert-danger border-0 rounded-4 shadow-sm d-none p-4" role="alert">
+            <div class="d-flex align-items-center gap-3 mb-3">
+              <i class="bi bi-exclamation-triangle-fill fs-2 text-danger"></i>
+              <div>
+                <h2 class="h6 fw-bold mb-1">No se pudieron cargar los datos</h2>
+                <p class="mb-0 small text-danger-emphasis" id="mensaje-error-detalle">Ocurrió un problema de comunicación con la fuente de datos.</p>
+              </div>
+            </div>
+            <div class="d-flex justify-content-end gap-2">
+              <button type="button" class="btn btn-sm btn-outline-danger" id="btn-reintentar">
+                <i class="bi bi-arrow-clockwise me-1"></i>Reintentar
+              </button>
+            </div>
+          </div>
+
+          <!-- ESTADO: SIN RESULTADOS -->
+          <div id="estado-vacio" class="text-center py-5 bg-white rounded-4 shadow-sm d-none px-4">
+            <div class="empty-state-icon mx-auto mb-3 text-muted">
+              <i class="bi bi-geo-alt-fill display-4 text-secondary opacity-50"></i>
+            </div>
+            <h2 class="h5 fw-bold text-dark mb-2">No se encontraron farmacias</h2>
+            <p class="text-muted small mb-3" id="texto-estado-vacio">
+              No hay farmacias que coincidan con los filtros seleccionados para el día de hoy. Podés seleccionar otro partido o localidad, o restablecer los filtros.
+            </p>
+            <button type="button" class="btn btn-success btn-sm rounded-pill px-3" id="btn-vaciar-filtros-accion">
+              <i class="bi bi-arrow-counterclockwise me-1"></i>Restablecer filtros
+            </button>
+          </div>
+
+          <!-- LISTA DINÁMICA DE TARJETAS -->
+          <div id="contenedor-tarjetas" class="d-flex flex-column gap-3" aria-label="Listado de farmacias">
+            <!-- Renderizado dinámico desde app.js -->
+          </div>
+
+        </div>
+
+        <!-- COLUMNA MAPA INTERACTIVO -->
+        <div class="col-12 col-md-6 col-lg-7 order-1 order-md-2" id="columna-mapa">
+          <div class="card border-0 shadow-sm rounded-4 overflow-hidden sticky-map-card">
+            
+            <!-- Barra superior del mapa con controles rápidos -->
+            <div class="map-header bg-white px-3 py-2 border-bottom d-flex align-items-center justify-content-between">
+              <div class="d-flex align-items-center gap-2">
+                <i class="bi bi-map text-primary"></i>
+                <span class="fw-semibold small text-dark">Mapa de Cobertura</span>
+                <span class="badge bg-secondary-subtle text-secondary small" id="contador-marcadores-mapa">0 marcadores</span>
+              </div>
+              <div class="d-flex align-items-center gap-1">
+                <button type="button" class="btn btn-sm btn-outline-secondary rounded-pill py-0 px-2" id="btn-mapa-restablecer" title="Reencuadrar todos los marcadores">
+                  <i class="bi bi-arrows-angle-contract"></i> <span class="d-none d-lg-inline small">Reencuadrar</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Contenedor del mapa Leaflet -->
+            <div id="mapa-leaflet" class="mapa-container" role="application" aria-label="Mapa interactivo con farmacias de turno"></div>
+
+            <!-- Pie de mapa con leyenda -->
+            <div class="map-footer bg-light px-3 py-2 border-top d-flex flex-wrap align-items-center justify-content-between gap-2 small text-muted">
+              <div class="d-flex align-items-center gap-3">
+                <span class="d-inline-flex align-items-center gap-1">
+                  <span class="legend-pin legend-pin-open"></span> Abierta / De Turno
+                </span>
+                <span class="d-inline-flex align-items-center gap-1">
+                  <span class="legend-pin legend-pin-24h"></span> 24 Horas
+                </span>
+                <span class="d-inline-flex align-items-center gap-1">
+                  <span class="legend-pin legend-pin-regular"></span> Padrón General
+                </span>
+              </div>
+              <div class="text-end fst-italic">
+                © OpenStreetMap contributors
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  </main>
+
+  <!-- ========================================================= -->
+  <!-- MODAL: INFORMACIÓN SOBRE FUENTES OFICIALES Y REGULACIÓN   -->
+  <!-- ========================================================= -->
+  <div class="modal fade" id="modalFuentes" tabindex="-1" aria-labelledby="modalFuentesLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg modal-dialog-scrollable">
+      <div class="modal-content rounded-4 border-0 shadow">
+        
+        <div class="modal-header bg-health-subtle border-0">
+          <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-shield-check-fill text-success fs-4"></i>
+            <h2 class="modal-title h5 fw-bold mb-0 text-health-dark" id="modalFuentesLabel">
+              Fuentes Oficiales y Regulación de Turnos en CABA y PBA
+            </h2>
+          </div>
+          <button type="button" class="btn-close" data-bs-toggle="modal" data-bs-target="#modalFuentes" aria-label="Cerrar modal"></button>
+        </div>
+
+        <div class="modal-body p-4">
+          <div class="alert alert-info border-0 rounded-3 mb-4">
+            <h3 class="h6 fw-bold mb-1"><i class="bi bi-info-circle-fill me-1"></i> Por qué CABA y la Provincia de Buenos Aires usan fuentes distintas</h3>
+            <p class="small mb-0">
+              La Ciudad Autónoma de Buenos Aires y la Provincia de Buenos Aires son dos jurisdicciones autónomas con marcos regulatorios, autoridades sanitarias y colegios farmacéuticos independientes. No existe una única base de datos unificada gubernamental con turnos en tiempo real para ambas regiones.
+            </p>
+          </div>
+
+          <!-- Jurisdicción PBA -->
+          <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+            <h3 class="h6 fw-bold text-dark d-flex align-items-center gap-2 mb-2">
+              <span class="badge bg-primary">1</span> Provincia de Buenos Aires (PBA)
+            </h3>
+            <p class="small text-secondary mb-2">
+              <strong>Marco regulatorio:</strong> Ley Provincial 10.606. La fiscalización, confección y publicación de los turnos obligatorios de guardia (habitualmente de 08:30 a 08:30 hs) está delegada por ley al <strong>Colegio de Farmacéuticos de la Provincia de Buenos Aires (COLFARMA)</strong> y a sus colegios filiales en cada partido (Moreno, Luján, Pilar, Morón, Merlo, Gral. Rodríguez, San Isidro, La Plata, Quilmes, Mar del Plata, Bahía Blanca, etc.).
+            </p>
+            <ul class="small text-secondary mb-2">
+              <li><strong>Colegio Provincial:</strong> <a href="https://colfarma.org.ar" target="_blank" rel="noopener noreferrer">COLFARMA (colfarma.org.ar)</a>.</li>
+              <li><strong>Filiales y colegios locales:</strong> Cada municipio posee su filial colegial (ej. Colfarma Luján, Colfarma Morón, Colfarma Pilar, Colfarma La Plata, Colfarma Mar del Plata) que publica el rol mensual de guardias.</li>
+              <li><strong>Datos Nacionales (REFAR):</strong> El Ministerio de Salud de la Nación publica en <a href="https://datos.gob.ar" target="_blank" rel="noopener noreferrer">datos.gob.ar</a> el Registro Federal de Establecimientos de Salud (REFAR), con el padrón general de farmacias habilitadas en la provincia.</li>
+            </ul>
+          </div>
+
+          <!-- Jurisdicción CABA -->
+          <div class="card border-0 bg-light rounded-3 p-3 mb-3">
+            <h3 class="h6 fw-bold text-dark d-flex align-items-center gap-2 mb-2">
+              <span class="badge bg-success">2</span> Ciudad Autónoma de Buenos Aires (CABA)
+            </h3>
+            <p class="small text-secondary mb-2">
+              <strong>Marco regulatorio:</strong> Ley Nacional de Farmacias N.º 17.565 y normas del Ministerio de Salud del GCBA. La entidad profesional colegiada es el <strong>COFyBCF</strong> (Colegio Oficial de Farmacéuticos y Bioquímicos de Capital Federal).
+            </p>
+            <ul class="small text-secondary mb-2">
+              <li><strong>Datos Abiertos GCBA:</strong> Dataset de establecimientos farmacéuticos georreferenciados en <a href="https://data.buenosaires.gob.ar/dataset/farmacias" target="_blank" rel="noopener noreferrer">data.buenosaires.gob.ar</a> (padrón general de ubicación, no turnos rotativos en tiempo real).</li>
+              <li><strong>Canales de atención:</strong> Línea 147 y Boti (WhatsApp del GCBA) para orientación ciudadana.</li>
+              <li><strong>Colegio Oficial:</strong> <a href="https://www.cofybcf.org.ar" target="_blank" rel="noopener noreferrer">COFyBCF (www.cofybcf.org.ar)</a> — Tel: 0800-348-0080.</li>
+            </ul>
+          </div>
+
+          <!-- Recomendación de Urgencias -->
+          <div class="card border-warning border-1 rounded-3 p-3">
+            <h3 class="h6 fw-bold text-dark d-flex align-items-center gap-2 mb-2">
+              <i class="bi bi-telephone-outbound-fill text-warning"></i> Recomendación ante Urgencias
+            </h3>
+            <p class="small text-secondary mb-0">
+              Las farmacias de turno atienden durante la noche a través de su ventanilla reglamentaria. Se recomienda pulsar el botón de llamada provisto en cada tarjeta para constatar stock antes de trasladarte. En caso de emergencias de riesgo de vida, comunicate con el <strong>SAME (107)</strong> o el <strong>911</strong>.
+            </p>
+          </div>
+        </div>
+
+        <div class="modal-footer border-0">
+          <button type="button" class="btn btn-secondary rounded-pill px-4" data-bs-dismiss="modal">Entendido</button>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================= -->
+  <!-- PIE DE PÁGINA (FOOTER)                                    -->
+  <!-- ========================================================= -->
+  <footer class="site-footer bg-white border-top py-4 mt-auto">
+    <div class="container-fluid px-lg-4">
+      <div class="row align-items-center justify-content-between gy-2 small text-muted">
+        <div class="col-12 col-md-6">
+          <p class="mb-1 fw-semibold text-dark">
+            <i class="bi bi-hospital text-success me-1"></i> Farmacias de Turno — CABA y Provincia de Buenos Aires
+          </p>
+          <p class="mb-0 text-secondary">
+            Desarrollado con estándares web abiertos, Leaflet.js, OpenStreetMap y Bootstrap 5. Zona horaria: <span class="badge bg-light text-dark border font-monospace">America/Argentina/Buenos_Aires</span>.
+          </p>
+        </div>
+        <div class="col-12 col-md-6 text-md-end">
+          <p class="mb-1">
+            Emergencias médicas: <strong class="text-danger">SAME 107</strong> | Emergencias policiales: <strong class="text-primary">911</strong>
+          </p>
+          <p class="mb-0 text-secondary">
+            Datos orientativos. Toda farmacia exhibe obligatoriamente su turno en cartelera frontal.
+          </p>
+        </div>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================================= -->
+  <!-- DEPENDENCIAS JAVASCRIPT CDN (GRATUITAS)                    -->
+  <!-- ========================================================= -->
+  
+  <!-- Bootstrap 5 Bundle JS (incluye Popper) -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-YvpcrYf0tY3lHB60NNkmXc5s9fDVZLESaAA55NDzOxhy9GkcIdslK1eN7N6jIeHz" crossorigin="anonymous"></script>
+
+  <!-- Leaflet.js -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <!-- Módulos propios de la aplicación -->
+  <script src="js/api.js"></script>
+  <script src="js/mapa.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
